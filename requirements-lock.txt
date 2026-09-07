@@ -1,0 +1,24 @@
+# EXACT versions of the environment that produced the published results
+# (Python 3.12.6, Linux x86-64, NVIDIA H100 NVL).
+# Use this for a bit-comparable re-run; use requirements.txt for ordinary installs.
+#
+# torch is listed without a CUDA suffix: install the build matching your driver from
+# https://pytorch.org/get-started/locally/ before applying this file.
+numpy==2.2.6
+scipy==1.16.2
+pandas==2.3.3
+scikit-learn==1.7.2
+xgboost==3.2.0
+matplotlib==3.10.7
+seaborn==0.13.2
+lasio==0.32
+networkx==3.5
+statsmodels==0.14.6
+scikit-posthocs==0.14.0
+h5py==3.15.1
+tqdm==4.67.1
+torch==2.8.0
+pypots==1.0
+benchpots==0.4
+pygrinder==0.7
+tsdb==0.7.1

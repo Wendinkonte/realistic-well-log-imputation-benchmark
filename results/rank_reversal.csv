@@ -1,0 +1,10 @@
+modele,single,block,profile,blackout
+mean,9,9,7,6
+locf,3,1,8,1
+rf,8,8,6,8
+xgb,7,7,4,9
+mice,5,3,2,7
+saits,2,2,9,2
+brits,1,4,5,5
+gnn,6,6,3,3
+stgnn,4,5,1,4

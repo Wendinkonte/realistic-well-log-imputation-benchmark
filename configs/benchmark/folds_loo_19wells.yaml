@@ -1,0 +1,98 @@
+# Leave-one-well-out fold structure of the published benchmark: 19 wells, 19 folds.
+#
+# DOCUMENTATION, NOT A CONTROL FILE. The harness never reads this file; it derives the
+# folds from `folds_loo.json` written by scripts/build_dataset.py for whatever corpus
+# it was pointed at. This file exists so the 19-fold protocol is legible without the
+# proprietary corpus, and so a reader can check the shape of a fold (one held-out well,
+# eighteen training wells, no window of the held-out well anywhere in training).
+#
+# The wells are the anonymised identifiers W01-W19 used in the article. The order below
+# is nominal: the correspondence between a W-identifier and the `fold` index of
+# results/raw_metrics.csv is deliberately NOT published, because the W-numbering encodes
+# an ordering of the corpus and publishing it would weaken the anonymisation. Nothing in
+# the analysis depends on it: every released table is keyed by fold index, and the
+# significance tests block on the 19 folds without reference to which well is which.
+
+n_wells: 19
+n_folds: 19
+cross_validation: leave-one-well-out
+
+wells: [W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19]
+
+folds:
+  fold_0:
+    test:  [W01]
+    train: [W02, W03, W04, W05, W06, W07, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_1:
+    test:  [W02]
+    train: [W01, W03, W04, W05, W06, W07, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_2:
+    test:  [W03]
+    train: [W01, W02, W04, W05, W06, W07, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_3:
+    test:  [W04]
+    train: [W01, W02, W03, W05, W06, W07, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_4:
+    test:  [W05]
+    train: [W01, W02, W03, W04, W06, W07, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_5:
+    test:  [W06]
+    train: [W01, W02, W03, W04, W05, W07, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_6:
+    test:  [W07]
+    train: [W01, W02, W03, W04, W05, W06, W08, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_7:
+    test:  [W08]
+    train: [W01, W02, W03, W04, W05, W06, W07, W09, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_8:
+    test:  [W09]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W10,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_9:
+    test:  [W10]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W11, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_10:
+    test:  [W11]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W12, W13, W14, W15, W16, W17, W18, W19]
+  fold_11:
+    test:  [W12]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W13, W14, W15, W16, W17, W18, W19]
+  fold_12:
+    test:  [W13]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W14, W15, W16, W17, W18, W19]
+  fold_13:
+    test:  [W14]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W13, W15, W16, W17, W18, W19]
+  fold_14:
+    test:  [W15]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W13, W14, W16, W17, W18, W19]
+  fold_15:
+    test:  [W16]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W13, W14, W15, W17, W18, W19]
+  fold_16:
+    test:  [W17]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W13, W14, W15, W16, W18, W19]
+  fold_17:
+    test:  [W18]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W13, W14, W15, W16, W17, W19]
+  fold_18:
+    test:  [W19]
+    train: [W01, W02, W03, W04, W05, W06, W07, W08, W09,
+            W10, W11, W12, W13, W14, W15, W16, W17, W18]

@@ -1,0 +1,12 @@
+# Copy to configs/well_aliases.yaml if your log files and your coordinate table spell
+# some wells differently. configs/well_aliases.yaml is git-ignored, because a list of
+# well names is itself identifying information.
+#
+# Applied by src/wellog_imputation/models/spatial.py :: _key, after the generic
+# normalisation (archive-index suffix stripped, separators collapsed, trailing deviation
+# letter dropped, "SS" expanded to "SOUS").
+#
+# Substitutions are plain substring replacements, applied in file order.
+aliases:
+  # SPELLING-IN-THE-LAS-FILENAME: SPELLING-IN-THE-COORDINATE-TABLE
+  # EXAMPLE-WELL-XYZ: EXAMPLE-WELL

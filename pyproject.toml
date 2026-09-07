@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wellog-imputation"
+version = "1.0.0"
+description = "Benchmark of well-log imputation methods under realistic missingness"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["well-log", "imputation", "missing data", "benchmark", "leakage",
+            "reproducibility", "graph neural networks", "geothermal"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+# Authors as listed on the article. Affiliations: Universite de Bordeaux (ED Sciences
+# et Environnements) and BRGM (French Geological Survey), Orleans, France.
+authors = [
+    { name = "Wendinkonte Sawadogo" },
+    { name = "Romain Chassagne" },
+    { name = "Pwavodi Joshua" },
+    { name = "Olivier Atteia" },
+]
+dependencies = [
+    "numpy>=2.0,<3",
+    "scipy>=1.13,<2",
+    "pandas>=2.2,<3",
+    "scikit-learn>=1.5,<2",
+    "xgboost>=2.1,<4",
+    "matplotlib>=3.8,<4",
+    "lasio>=0.31,<1",
+    "PyYAML>=6.0,<7",
+]
+
+[project.optional-dependencies]
+# Neural imputers: SAITS and BRITS (PyPOTS), AE, U-Net, GNN and ST-GNN (PyTorch).
+neural = [
+    "torch>=2.3",
+    "pypots>=1.0",
+]
+# Friedman post-hoc matrices and critical-difference diagrams.
+stats = [
+    "scikit-posthocs>=0.9",
+    "statsmodels>=0.14",
+]
+dev = [
+    "pytest>=8.0",
+]
+all = [
+    "wellog-imputation[neural,stats,dev]",
+]
+
+[project.urls]
+Repository = "https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

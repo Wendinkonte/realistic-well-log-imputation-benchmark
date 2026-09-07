@@ -1,0 +1,23 @@
+* text=auto eol=lf
+
+*.py     text diff=python
+*.md     text
+*.csv    text
+*.json   text
+*.yaml   text
+*.yml    text
+*.sbatch text eol=lf
+
+*.png  binary
+*.pdf  binary
+*.npz  binary
+*.npy  binary
+*.pkl  binary
+*.h5   binary
+*.pt   binary
+*.pth  binary
+*.las  binary
+
+# Keep generated result tables out of the language statistics.
+results/**   linguist-generated=true
+docs/**      linguist-documentation=true

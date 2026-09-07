@@ -1,0 +1,170 @@
+# =============================================================================
+#  DATA SAFETY FIRST
+#  The well-log data used in the study are the property of BRGM and cannot be
+#  redistributed. Nothing derived from them may be committed here.
+#  When in doubt about a file: do not commit it.
+# =============================================================================
+
+# ---- Raw well-log data (never redistributable) ------------------------------
+*.las
+*.LAS
+!examples/synthetic/data/las/*.las
+*.dlis
+*.DLIS
+*.lis
+*.LIS
+# Anchored to the repository root: a bare `data/` would also match
+# examples/synthetic/data/, and a later negation cannot re-include files that live
+# under an excluded directory.
+/data/
+/las/
+/las_originaux/
+/las_composites/
+/private/
+/proprietary/
+/secrets/
+**/data/raw/
+**/data/private/
+**/data/proprietary/
+
+# ---- Re-identification keys and coordinates ---------------------------------
+# These undo the W01..W19 anonymisation. They must never reach this repository.
+well_matching.csv
+well_anonymization_map.csv
+*anonymization*map*.csv
+*anonymisation*map*.csv
+well_coordinates.csv
+*coordinates*.csv
+!examples/synthetic/data/processed/well_coordinates.csv
+
+# ---- Local configuration (may contain absolute paths) -----------------------
+configs/paths.yaml
+.env
+.env.*
+*.key
+*.pem
+*.p12
+id_rsa*
+id_ed25519*
+credentials*
+.netrc
+
+# ---- Derived arrays that carry ground-truth log values ----------------------
+# Pool dumps hold the true measured values at every evaluated position, so they are
+# derived proprietary data even though they are "just results".
+results/pools/
+results/pools_seeded/
+results/raw/
+results/curves/
+**/pool_*.npz
+**/imputation_cache*.pkl
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+# ...but the synthetic example corpus is safe and intended to be shared. It is fully
+# artificial (see examples/synthetic/README.md) and is committed so a reviewer can run
+# the pipeline without executing the generator first.
+!examples/synthetic/data/
+!examples/synthetic/data/**
+
+# ---- Model checkpoints ------------------------------------------------------
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# ---- Run logs (they print well identifiers per fold) ------------------------
+*.log
+logs/
+slurm-*.out
+*.out
+
+# ---- Caches -----------------------------------------------------------------
+cache/
+.cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ---- Notebooks (outputs may embed proprietary data) -------------------------
+# Commit a notebook only after clearing its outputs, then force-add it.
+*.ipynb
+
+# ---- Environments -----------------------------------------------------------
+venv/
+.venv/
+env/
+
+# ---- LaTeX and manuscript sources -------------------------------------------
+# This repository distributes code and results only. Manuscript sources and LaTeX
+# build artefacts are deliberately not part of it; these rules stop one being added
+# by accident.
+manuscript/
+overleaf/
+*.tex
+*.bib
+*.bst
+*.sty
+*.cls
+*.aux
+*.bbl
+*.blg
+*.dvi
+*.fdb_latexmk
+*.fls
+*.idx
+*.ind
+*.lof
+*.lot
+*.nav
+*.snm
+*.spl
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+
+# ---- OS / editor ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# =============================================================================
+#  EXPLICIT ALLOW-LIST
+#  Aggregate results are released on purpose. They are keyed by fold index and
+#  contain no well identifier, coordinate or measured value. Every file below has
+#  been checked individually before release.
+# =============================================================================
+!results/aggregated/
+!results/aggregated/**
+!results/significance/
+!results/significance/**
+!results/ablations/
+!results/ablations/**
+!results/robustness/
+!results/robustness/**
+!results/figures/
+!results/figures/**
+!results/**/*.csv
+!results/**/*.json
+!results/**/*.md
+!results/**/*.png
+!results/**/*.pdf
+
+# ---- Corpus-specific well-name aliases (a list of well names is identifying) ----
+configs/well_aliases.yaml

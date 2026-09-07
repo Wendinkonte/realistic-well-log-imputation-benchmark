@@ -1,0 +1,66 @@
+name: CI
+
+# Lightweight only. This workflow must never need the BRGM data, download anything
+# proprietary, use a secret, or launch real training. It installs the core
+# dependencies, runs the test suite, and executes the synthetic smoke test.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (core dependencies only, no PyTorch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[stats,dev]"
+
+      - name: Run the test suite
+        run: pytest -q
+
+      - name: Generate the synthetic example corpus
+        run: python examples/synthetic/make_synthetic.py
+
+      - name: Synthetic smoke test (tabular methods only)
+        env:
+          WELLOG_DATA_DIR: examples/synthetic/data/processed
+          WELLOG_COORDS_CSV: examples/synthetic/data/processed/well_coordinates.csv
+          WELLOG_RESULTS_DIR: /tmp/wellog_ci
+        run: |
+          python scripts/build_dataset.py --las-dir examples/synthetic/data/las \
+                                          --out /tmp/wellog_ci_processed
+          python scripts/run_single_experiment.py --model mean --folds 2
+          python scripts/run_single_experiment.py --model mice --folds 2
+
+      - name: Guard — no proprietary artefact staged
+        run: |
+          set -e
+          # The synthetic example corpus is the one intended exception: it is fully
+          # artificial (see examples/synthetic/README.md) and is committed on purpose.
+          if git ls-files | grep -vE '^examples/synthetic/' | grep -iE '\.(las|dlis|lis)$'; then
+            echo "::error::LAS-family file tracked outside the synthetic example"; exit 1
+          fi
+          if git ls-files | grep -vE '^examples/synthetic/' \
+             | grep -iE '(anonymi[sz]ation.*map|well_matching|well_coordinates)'; then
+            echo "::error::re-identification table tracked in the repository"; exit 1
+          fi
+          if git ls-files | grep -iE '\.(tex|bib|bst|sty|cls|aux|bbl|blg|fls|fdb_latexmk)$'; then
+            echo "::error::manuscript/LaTeX source tracked in the repository"; exit 1
+          fi

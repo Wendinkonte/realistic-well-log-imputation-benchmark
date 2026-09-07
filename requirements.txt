@@ -1,0 +1,26 @@
+# Core dependencies. `pip install -r requirements.txt` is enough for the tabular
+# methods, the masking logic, the metrics, the statistics and the figures.
+#
+# Ranges, not exact pins: the science does not depend on a patch release, and pinning
+# hard makes the repository un-installable within a year. The EXACT versions the
+# published run used are recorded in docs/REPRODUCIBILITY.md, and mirrored in
+# requirements-lock.txt for a bit-comparable environment.
+numpy>=2.0,<3
+scipy>=1.13,<2
+pandas>=2.2,<3
+scikit-learn>=1.5,<2
+xgboost>=2.1,<4
+matplotlib>=3.8,<4
+lasio>=0.31,<1
+PyYAML>=6.0,<7
+
+# --- Significance testing: Nemenyi matrices and critical-difference diagrams ---
+scikit-posthocs>=0.9
+statsmodels>=0.14
+
+# --- Neural imputers (SAITS, BRITS, AE, U-Net, GNN, ST-GNN) --------------------
+# Heavy, and unnecessary for the tabular methods or for reproducing the tables and
+# figures from the released aggregate results. Install with:
+#     pip install -e ".[neural]"
+# torch>=2.3
+# pypots>=1.0

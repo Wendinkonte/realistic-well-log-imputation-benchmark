@@ -1,0 +1,112 @@
+scenario,model_A,model_B,seed,n_folds,stat,p_value,verdict
+profile,stgnn,gnn,0,19,78.00,5.153e-01,ns (median dR2=+0.0386)
+profile,stgnn,gnn,1,19,62.00,1.956e-01,ns (median dR2=+0.0405)
+profile,stgnn,gnn,2,19,91.00,8.906e-01,ns (median dR2=+0.0011)
+profile,stgnn,gnn,3,19,57.00,1.336e-01,ns (median dR2=+0.0160)
+profile,stgnn,gnn,4,19,83.00,6.507e-01,ns (median dR2=+0.0163)
+profile,stgnn,mice,0,19,55.00,1.134e-01,ns (median dR2=+0.0385)
+profile,stgnn,mice,1,19,65.00,2.413e-01,ns (median dR2=+0.0844)
+profile,stgnn,mice,2,19,89.00,8.288e-01,ns (median dR2=-0.0019)
+profile,stgnn,mice,3,19,72.00,3.736e-01,ns (median dR2=+0.0515)
+profile,stgnn,mice,4,19,91.00,8.906e-01,ns (median dR2=+0.0333)
+profile,gnn,mice,0,19,59.00,1.564e-01,ns (median dR2=+0.0603)
+profile,gnn,mice,1,19,92.00,9.217e-01,ns (median dR2=+0.0396)
+profile,gnn,mice,2,19,85.00,7.086e-01,ns (median dR2=-0.0427)
+profile,gnn,mice,3,19,88.00,7.983e-01,ns (median dR2=+0.0223)
+profile,gnn,mice,4,19,90.00,8.596e-01,ns (median dR2=+0.0319)
+profile,xgb,mice,0,19,70.00,3.321e-01,ns (median dR2=+0.0225)
+profile,xgb,mice,1,19,64.00,2.253e-01,ns (median dR2=-0.0414)
+profile,xgb,mice,2,19,77.00,4.900e-01,ns (median dR2=+0.0023)
+profile,xgb,mice,3,19,70.00,3.321e-01,ns (median dR2=+0.0020)
+profile,xgb,mice,4,19,86.00,7.381e-01,ns (median dR2=-0.0149)
+profile,xgb,stgnn,0,19,73.00,3.955e-01,ns (median dR2=-0.0093)
+profile,xgb,stgnn,1,19,49.00,6.629e-02,ns (median dR2=-0.0515)
+profile,xgb,stgnn,2,19,78.00,5.153e-01,ns (median dR2=-0.0143)
+profile,xgb,stgnn,3,19,61.00,1.819e-01,ns (median dR2=-0.0731)
+profile,xgb,stgnn,4,19,88.00,7.983e-01,ns (median dR2=-0.0481)
+profile,xgb,gnn,0,19,53.00,9.551e-02,ns (median dR2=-0.0384)
+profile,xgb,gnn,1,19,82.00,6.226e-01,ns (median dR2=-0.0219)
+profile,xgb,gnn,2,19,94.00,9.843e-01,ns (median dR2=-0.0024)
+profile,xgb,gnn,3,19,87.00,7.680e-01,ns (median dR2=-0.0438)
+profile,xgb,gnn,4,19,83.00,6.507e-01,ns (median dR2=-0.0217)
+profile,unet,mice,0,19,54.00,1.042e-01,ns (median dR2=+0.0226)
+profile,unet,mice,1,19,75.00,4.413e-01,ns (median dR2=+0.0035)
+profile,unet,mice,2,19,43.00,3.607e-02,sig (median dR2=+0.0316)
+profile,unet,mice,3,19,27.00,4.578e-03,sig (median dR2=+0.0574)
+profile,unet,mice,4,19,76.00,4.653e-01,ns (median dR2=+0.0156)
+profile,unet,stgnn,0,19,82.00,6.226e-01,ns (median dR2=+0.0006)
+profile,unet,stgnn,1,19,68.00,2.935e-01,ns (median dR2=-0.0271)
+profile,unet,stgnn,2,19,86.00,7.381e-01,ns (median dR2=+0.0088)
+profile,unet,stgnn,3,19,93.00,9.530e-01,ns (median dR2=+0.0553)
+profile,unet,stgnn,4,19,87.00,7.680e-01,ns (median dR2=-0.0017)
+profile,unet,gnn,0,19,79.00,5.412e-01,ns (median dR2=+0.0011)
+profile,unet,gnn,1,19,90.00,8.596e-01,ns (median dR2=-0.0095)
+profile,unet,gnn,2,19,74.00,4.180e-01,ns (median dR2=+0.0092)
+profile,unet,gnn,3,19,73.00,3.955e-01,ns (median dR2=+0.0619)
+profile,unet,gnn,4,19,74.00,4.180e-01,ns (median dR2=-0.0379)
+blackout,locf,rf,0,19,0.00,3.815e-06,sig (median dR2=+0.4353)
+blackout,locf,rf,1,19,0.00,3.815e-06,sig (median dR2=+0.3557)
+blackout,locf,rf,2,19,0.00,3.815e-06,sig (median dR2=+0.4100)
+blackout,locf,rf,3,19,0.00,3.815e-06,sig (median dR2=+0.4277)
+blackout,locf,rf,4,19,0.00,3.815e-06,sig (median dR2=+0.4176)
+blackout,locf,xgb,0,19,1.00,7.629e-06,sig (median dR2=+1.2937)
+blackout,locf,xgb,1,19,2.00,1.144e-05,sig (median dR2=+1.5445)
+blackout,locf,xgb,2,19,4.00,2.670e-05,sig (median dR2=+1.4909)
+blackout,locf,xgb,3,19,1.00,7.629e-06,sig (median dR2=+1.3796)
+blackout,locf,xgb,4,19,0.00,3.815e-06,sig (median dR2=+1.1430)
+blackout,locf,mice,0,19,0.00,3.815e-06,sig (median dR2=+0.3405)
+blackout,locf,mice,1,19,0.00,3.815e-06,sig (median dR2=+0.3217)
+blackout,locf,mice,2,19,0.00,3.815e-06,sig (median dR2=+0.2925)
+blackout,locf,mice,3,19,5.00,3.815e-05,sig (median dR2=+0.3347)
+blackout,locf,mice,4,19,0.00,3.815e-06,sig (median dR2=+0.4287)
+blackout,locf,saits,0,19,18.00,9.651e-04,sig (median dR2=+0.0852)
+blackout,locf,saits,1,19,31.00,8.232e-03,sig (median dR2=+0.1057)
+blackout,locf,saits,2,19,22.00,2.022e-03,sig (median dR2=+0.1263)
+blackout,locf,saits,3,19,34.00,1.236e-02,sig (median dR2=+0.0970)
+blackout,locf,saits,4,19,12.00,2.670e-04,sig (median dR2=+0.0846)
+blackout,locf,brits,0,19,1.00,7.629e-06,sig (median dR2=+0.1757)
+blackout,locf,brits,1,19,3.00,1.907e-05,sig (median dR2=+0.1721)
+blackout,locf,brits,2,19,1.00,7.629e-06,sig (median dR2=+0.1993)
+blackout,locf,brits,3,19,11.00,2.098e-04,sig (median dR2=+0.1717)
+blackout,locf,brits,4,19,0.00,3.815e-06,sig (median dR2=+0.2157)
+blackout,locf,unet,0,19,2.00,1.144e-05,sig (median dR2=+0.1977)
+blackout,locf,unet,1,19,19.00,1.171e-03,sig (median dR2=+0.1552)
+blackout,locf,unet,2,19,5.00,3.815e-05,sig (median dR2=+0.2236)
+blackout,locf,unet,3,19,15.00,5.226e-04,sig (median dR2=+0.2256)
+blackout,locf,unet,4,19,18.00,9.651e-04,sig (median dR2=+0.2526)
+blackout,locf,ae,0,19,72.00,3.736e-01,ns (median dR2=+0.0152)
+blackout,locf,ae,1,19,89.00,8.288e-01,ns (median dR2=+0.0132)
+blackout,locf,ae,2,19,68.00,2.935e-01,ns (median dR2=+0.0299)
+blackout,locf,ae,3,19,46.00,4.937e-02,sig (median dR2=+0.0676)
+blackout,locf,ae,4,19,69.00,3.124e-01,ns (median dR2=+0.0282)
+blackout,locf,gnn,0,19,19.00,1.171e-03,sig (median dR2=+0.1558)
+blackout,locf,gnn,1,19,22.00,2.022e-03,sig (median dR2=+0.1795)
+blackout,locf,gnn,2,19,16.00,6.447e-04,sig (median dR2=+0.1467)
+blackout,locf,gnn,3,19,24.00,2.838e-03,sig (median dR2=+0.1830)
+blackout,locf,gnn,4,19,12.00,2.670e-04,sig (median dR2=+0.2172)
+blackout,locf,stgnn,0,19,13.00,3.357e-04,sig (median dR2=+0.1710)
+blackout,locf,stgnn,1,19,30.00,7.145e-03,sig (median dR2=+0.1499)
+blackout,locf,stgnn,2,19,12.00,2.670e-04,sig (median dR2=+0.1997)
+blackout,locf,stgnn,3,19,24.00,2.838e-03,sig (median dR2=+0.1869)
+blackout,locf,stgnn,4,19,8.00,9.537e-05,sig (median dR2=+0.1446)
+
+# resume : fraction de seeds significatifs (p<0.05) par paire
+scenario,model_A,model_B,n_sig,n_seeds_tested
+blackout,locf,ae,1,5
+blackout,locf,brits,5,5
+blackout,locf,gnn,5,5
+blackout,locf,mice,5,5
+blackout,locf,rf,5,5
+blackout,locf,saits,5,5
+blackout,locf,stgnn,5,5
+blackout,locf,unet,5,5
+blackout,locf,xgb,5,5
+profile,gnn,mice,0,5
+profile,stgnn,gnn,0,5
+profile,stgnn,mice,0,5
+profile,unet,gnn,0,5
+profile,unet,mice,2,5
+profile,unet,stgnn,0,5
+profile,xgb,gnn,0,5
+profile,xgb,mice,0,5
+profile,xgb,stgnn,0,5

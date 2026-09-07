@@ -1,0 +1,26 @@
+# Copy to configs/paths.yaml and edit.  configs/paths.yaml is git-ignored.
+#
+# Every key may equally be set through an environment variable (shown in brackets),
+# which takes priority over this file.  Relative paths are resolved against the
+# project root.
+paths:
+  # Directory holding the raw LAS corpus consumed by scripts/build_dataset.py.
+  # The BRGM corpus used in the paper is NOT redistributed; point this at your own.
+  las_dir: data/raw                                  # [WELLOG_LAS_DIR]
+
+  # Output of the data pipeline: well_logs.npz, slices.npz, folds_loo.json, ...
+  data_dir: data/processed                           # [WELLOG_DATA_DIR]
+
+  # Where benchmark drivers write metrics, pools and tables.
+  results_dir: results                               # [WELLOG_RESULTS_DIR]
+  figures_dir: results/figures                       # [WELLOG_FIGURES_DIR]
+
+  # Surface coordinates of the wells, used to build the inter-well graph of the
+  # spatial models.  Columns: Name, Surf_LocX_L93, Surf_LocY_L93 (see
+  # docs/DATA_FORMAT.md).  Not redistributed for the BRGM wells.
+  coords_csv: data/processed/well_coordinates.csv    # [WELLOG_COORDS_CSV]
+
+  # Optional two-column map real_well_name -> anonymised id (W01..W19), used only to
+  # label figures.  Absent by default: figures then fall back to the identifiers
+  # already present in the data.  Never commit a real mapping table.
+  anon_map: data/processed/well_anonymization_map.csv  # [WELLOG_ANON_MAP]

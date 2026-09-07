@@ -1,0 +1,109 @@
+==============================================================================
+FINDING A — source de la variance inter-seed des baselines MEAN / LOCF
+==============================================================================
+Seeds testes : [0, 1, 2, 3, 4]  | scenarios : ['single', 'block', 'profile', 'blackout'] | folds LOO : 19
+
+eval_seed(sc, master) = EVAL_SEED[sc] + master*100000  (harness.eval_seed)
+-> le master seed entre dans le tirage des masques d'eval PAR CONSTRUCTION.
+
+[1] HASH DES POSITIONS DU MASQUE D'EVALUATION (par seed, par regime)
+    (concatenation des positions masquees sur les 19 folds, ordre harness)
+
+  scenario single:
+    seed 0: mask_hash=85e232cd8440  (n_masque=3963)
+    seed 1: mask_hash=fb06ea9c1061  (n_masque=3981)
+    seed 2: mask_hash=2911939e4139  (n_masque=3987)
+    seed 3: mask_hash=26bba144b2c4  (n_masque=3975)
+    seed 4: mask_hash=c9a823ad0173  (n_masque=3998)
+    -> hashes DIFFERENTS entre seeds
+
+  scenario block:
+    seed 0: mask_hash=ba0f998cedfd  (n_masque=50120)
+    seed 1: mask_hash=e607e5b521ea  (n_masque=48360)
+    seed 2: mask_hash=f607888e32cc  (n_masque=45560)
+    seed 3: mask_hash=d923e0c0f1f0  (n_masque=48760)
+    seed 4: mask_hash=a951ede02745  (n_masque=48040)
+    -> hashes DIFFERENTS entre seeds
+
+  scenario profile:
+    seed 0: mask_hash=c506388af1d8  (n_masque=205312)
+    seed 1: mask_hash=77e7edcc9c0f  (n_masque=205312)
+    seed 2: mask_hash=91fcfd41d8f3  (n_masque=205312)
+    seed 3: mask_hash=d7836cb27355  (n_masque=205312)
+    seed 4: mask_hash=67cb863b35d2  (n_masque=205312)
+    -> hashes DIFFERENTS entre seeds
+
+  scenario blackout:
+    seed 0: mask_hash=92320ba561bd  (n_masque=273685)
+    seed 1: mask_hash=0b391ac2b4aa  (n_masque=278822)
+    seed 2: mask_hash=6b34683674f7  (n_masque=274864)
+    seed 3: mask_hash=543b91587d89  (n_masque=284942)
+    seed 4: mask_hash=436e5d11add5  (n_masque=268456)
+    -> hashes DIFFERENTS entre seeds
+
+[2] HASH DES VECTEURS DE PREDICTION MEAN / LOCF (par seed, par regime)
+    (predictions sur positions masquees, unites d'origine = ce qui est score)
+
+  scenario single:
+    seed 0: MEAN_pred_hash=15b29efc9dbf  LOCF_pred_hash=9336ba9c035c
+    seed 1: MEAN_pred_hash=ee94738622d5  LOCF_pred_hash=4e7f3b7ba984
+    seed 2: MEAN_pred_hash=9ce48faf941f  LOCF_pred_hash=01d9950c3eac
+    seed 3: MEAN_pred_hash=3b11ad544d23  LOCF_pred_hash=84684e826e4f
+    seed 4: MEAN_pred_hash=0e4b2027bfde  LOCF_pred_hash=cabed8b68017
+
+  scenario block:
+    seed 0: MEAN_pred_hash=8efabc386b93  LOCF_pred_hash=85122d975047
+    seed 1: MEAN_pred_hash=fd737f66a909  LOCF_pred_hash=9c1d1815a0d4
+    seed 2: MEAN_pred_hash=28213c98dc66  LOCF_pred_hash=be64c4764937
+    seed 3: MEAN_pred_hash=45c6ebaa8418  LOCF_pred_hash=ab22f3fd2483
+    seed 4: MEAN_pred_hash=f2d8c1fdbe5a  LOCF_pred_hash=caa043cc9fb4
+
+  scenario profile:
+    seed 0: MEAN_pred_hash=5038f3f3ed26  LOCF_pred_hash=5038f3f3ed26
+    seed 1: MEAN_pred_hash=fde88d623d1d  LOCF_pred_hash=fde88d623d1d
+    seed 2: MEAN_pred_hash=37c066981952  LOCF_pred_hash=37c066981952
+    seed 3: MEAN_pred_hash=f9bdeb18a4ae  LOCF_pred_hash=f9bdeb18a4ae
+    seed 4: MEAN_pred_hash=bf360bc38c98  LOCF_pred_hash=bf360bc38c98
+
+  scenario blackout:
+    seed 0: MEAN_pred_hash=2ac3f1824e0c  LOCF_pred_hash=ced50614f58d
+    seed 1: MEAN_pred_hash=4b50cb1f0787  LOCF_pred_hash=ea0283437036
+    seed 2: MEAN_pred_hash=9bad3cb46a38  LOCF_pred_hash=677299106467
+    seed 3: MEAN_pred_hash=4bf800277716  LOCF_pred_hash=99b335b9bfe2
+    seed 4: MEAN_pred_hash=ec43e63a8cbe  LOCF_pred_hash=5adad5f60062
+
+[3] MOYENNE D'ENTRAINEMENT PAR CANAL (scaler.mu) — utilisee par MEAN
+    (et repli whole-log de LOCF). Calculee sur le TRAIN du fold, donc
+    INDEPENDANTE du seed. Moyenne (sur les 19 folds) +- ecart-type :
+    GR   : mu = 52.1069 +- 0.9209 (min 50.491, max 54.606)
+    RHOB : mu = 2.4859 +- 0.0077 (min 2.465, max 2.506)
+    NPHI : mu = 0.1842 +- 0.0039 (min 0.175, max 0.196)
+    -> mu ne contient AUCUNE dependance au seed : pour un fold donne, la meme
+       valeur est utilisee a tous les seeds (la variance ci-dessus est INTER-FOLD,
+       pas inter-seed).
+
+==============================================================================
+VERDICT
+==============================================================================
+Cas (A) : les positions des masques d'evaluation DIFFERENT entre seeds
+          (regimes concernes : ['single', 'block', 'profile', 'blackout']).
+
+C'est VOULU et documente : eval_seed melange la table fixe EVAL_SEED (positions
+identiques pour TOUTES les methodes d'un MEME seed -> comparaison juste, stats
+appariees valides) avec le master seed, de sorte que les positions VARIENT d'un
+seed a l'autre. La 'fixite des masques' du protocole est une fixite INTRA-seed
+(tous les modeles voient les memes positions a seed donne), pas inter-seed.
+
+Consequence pour MEAN/LOCF : leur prediction est deterministe a masque donne
+(MEAN rend mu, scaler seed-independant ; LOCF forward-fill / repli mu), mais
+l'ENSEMBLE des points masques entrant dans le R2 poole change d'un seed a
+l'autre -> le R2 poole (et donc l'ecart-type inter-seed rapporte) varie.
+La variance est donc REELLE et provient du tirage seed-dependant des positions
+d'evaluation, PAS d'un non-determinisme parasite du modele. Les hashes de
+prediction MEAN/LOCF qui changent entre seeds [2] le confirment : ils changent
+UNIQUEMENT parce que l'echantillon de positions masquees change [1], a mu fixe [3].
+
+(Verifie : pour chaque regime, MEAN_pred_hash varie entre seeds en parallele
+ du mask_hash, alors que mu est identique a tous les seeds -> aucune autre
+ source de variance.)
+

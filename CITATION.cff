@@ -1,0 +1,62 @@
+cff-version: 1.2.0
+title: >-
+  Realistic Missingness Changes the Ranking of Well-Log Imputation Models
+message: >-
+  If you use this software or the released results, please cite both the software and
+  the associated article.
+type: software
+authors:
+  - family-names: Sawadogo
+    given-names: Wendinkonté
+    affiliation: >-
+      ED Sciences et Environnements, Université de Bordeaux, France; and BRGM (French
+      Geological Survey), Orléans, France
+  - family-names: Chassagne
+    given-names: Romain
+    affiliation: BRGM (French Geological Survey), Orléans, France
+  - family-names: Joshua
+    given-names: Pwavodi
+    affiliation: BRGM (French Geological Survey), Orléans, France
+  - family-names: Atteia
+    given-names: Olivier
+    affiliation: ED Sciences et Environnements, Université de Bordeaux, France
+version: 1.0.0
+repository-code: >-
+  https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark
+abstract: >-
+  Reference implementation and reproducibility package for a benchmark of eleven
+  well-log imputation methods across four missingness regimes, evaluated under a strict
+  leakage-controlled leave-one-well-out protocol on 19 Paris Basin geothermal wells.
+  The package contains the data pipeline, the four masking-scenario generators
+  (single, block, profile and the realistic multi-log partial blackout), tabular,
+  sequential and spatial graph imputers, the evaluation harness with fold-local scaling
+  and identical evaluation masks across methods, pooled metric aggregation, the
+  significance testing and cluster bootstrap, and both spatial-leakage experiments.
+  The well-log data themselves are proprietary and are not redistributed; the derived
+  statistics and aggregate results are released.
+keywords:
+  - well-log imputation
+  - missing data
+  - partial blackout
+  - missing not at random
+  - data leakage
+  - reproducibility
+  - benchmark
+  - graph neural networks
+  - geothermal
+  - Paris Basin
+preferred-citation:
+  type: article
+  title: >-
+    Realistic Missingness Changes the Ranking of Well-Log Imputation Models
+  authors:
+    - family-names: Sawadogo
+      given-names: Wendinkonté
+    - family-names: Chassagne
+      given-names: Romain
+    - family-names: Joshua
+      given-names: Pwavodi
+    - family-names: Atteia
+      given-names: Olivier
+  journal: Computers & Geosciences
+  notes: Under review.

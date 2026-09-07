@@ -1,0 +1,74 @@
+# Sequential family hyperparameters, transcribed from
+# src/wellog_imputation/models/sequential.py. DOCUMENTATION, NOT A CONTROL FILE.
+#
+# All five are WITHIN-WELL models: they see the target well's window only, never a
+# neighbour. AE and U-Net do read all C logs as input channels, so they exploit
+# cross-log structure.
+
+locf:                      # LOCFImputer
+  parameters: none
+  note: >
+    Last-observation-carry-forward along depth; a gap is filled with the last observed
+    sample above it (0 if the window opens on a gap). Parameter-free, and the winner on
+    the realistic blackout regime.
+
+saits:                     # SeqImputer("saits"), via PyPOTS
+  implementation: pypots.imputation.SAITS
+  n_layers: 2
+  d_model: 128
+  n_heads: 4
+  d_k: 32
+  d_v: 32
+  d_ffn: 128
+  dropout: 0.1
+  batch_size: 32
+  epochs: 100
+  patience: epochs // 3     # max(3, epochs // 3)
+  optimizer: Adam
+  learning_rate: 1.0e-3
+  num_workers: 0
+
+brits:                     # SeqImputer("brits"), via PyPOTS
+  implementation: pypots.imputation.BRITS
+  rnn_hidden_size: 128
+  batch_size: 32
+  epochs: 100
+  patience: epochs // 3
+  optimizer: Adam
+  learning_rate: 1.0e-3
+  num_workers: 0
+
+# SAITS and BRITS are fitted with NO validation set. Passing one would make PyPOTS
+# early-stop on the validation loss, which would change the fitted model; without it
+# PyPOTS applies patience to the TRAINING loss. The per-epoch loss is captured from the
+# PyPOTS logger, which changes nothing in the fit.
+
+ae:                        # AEImputer -- MLP autoencoder over the flattened window
+  encoder: [Linear(T*2C, 256), GELU, Linear(256, 128), GELU, Linear(128, 64), GELU]
+  decoder: [Linear(64, 128), GELU, Linear(128, 256), GELU, Linear(256, T*C)]
+  batch_norm: false
+  batch_size: 16
+  epochs: 100
+  patience: epochs // 3
+  optimizer: Adam
+  learning_rate: 1.0e-3
+
+unet:                      # UNetImputer -- 1D conv autoencoder along depth, with skips
+  encoder_channels: [64, 128, 256]
+  bottleneck_channels: 256
+  kernel_size: 5           # matched to the ST-GNN temporal kernel
+  downsampling: maxpool(2) x3
+  decoder: ConvTranspose1d per level, encoder feature map concatenated (skip)
+  output_layer: Conv1d(kernel_size=1) -> C
+  padding: input zero-padded up to a multiple of 8, stripped from the output
+  batch_size: 16
+  epochs: 100
+  patience: epochs // 3
+  optimizer: Adam
+  learning_rate: 1.0e-3
+
+# Self-supervision convention, identical for AE, U-Net, SAITS, BRITS and the spatial
+# family: train on intact windows with artificial masking (the harness' mixed training
+# mask), and compute the loss ONLY at the artificially masked positions.
+# AE/U-Net input = window with missing set to 0, concatenated with a binary observed-mask
+# channel -> 2*C input channels.

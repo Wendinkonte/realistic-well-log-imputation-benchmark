@@ -1,0 +1,55 @@
+# Missingness scenarios (paper Section 4.3).
+#
+# DOCUMENTATION, NOT A CONTROL FILE -- see configs/benchmark/default.yaml.
+# Mirrors src/wellog_imputation/masking/scenarios.py and the EVAL_* tables of
+# src/wellog_imputation/evaluation/harness.py.
+
+# Fixed per-scenario seed of the evaluation masks (harness.EVAL_SEED).
+# An explicit table, never hash(scenario): Python's string hash is salted per process,
+# so hashing would silently change the masked positions between runs.
+# The generator seed actually used is EVAL_SEED[scenario] + master_seed * 100000
+# (harness.eval_seed), which keeps masks identical ACROSS METHODS within a seed and
+# varies them ACROSS SEEDS.
+eval_seed:
+  single:   1000
+  block:    1001
+  profile:  1002
+  blackout: 1003
+
+scenarios:
+  single:
+    family: mono-log
+    description: n scattered samples masked in ONE randomly chosen log per window
+    n_points: 5
+
+  block:
+    family: mono-log
+    description: one contiguous block masked in ONE randomly chosen log per window
+    block_len: [20, 100]      # candidate lengths, in samples
+
+  profile:
+    family: mono-log
+    description: an entire log of the window masked
+    # no parameter
+
+  blackout:
+    family: partial blackout (the realistic regime)
+    description: >
+      k logs masked simultaneously over the SAME contiguous interval, with k drawn from
+      the co-occurrence distribution measured on the real corpus. This is the mechanism
+      that accounts for ~96.5 % of real gaps and that no prior benchmark reproduces.
+    block_frac: [0.3, 0.9]    # fraction of the window covered, drawn uniformly
+    allow_full: true          # k may reach C (all three logs absent together)
+    cooccurrence:             # masking/scenarios.py :: COOCCUR_DEFAULT
+      1: 0.035
+      2: 0.759
+      3: 0.206
+    # NOTE the published single-seed run (job 316552) used the marginally earlier values
+    # {2: 0.761, 3: 0.204}. The ~0.2 percentage-point difference is below the reported
+    # precision and changes no R2 at three decimals. See docs/REPRODUCIBILITY.md.
+
+training_mask:
+  description: >
+    Training uses MIXED missingness so no model is tuned to one regime: the windows are
+    split into four equal chunks, one per scenario, with the same parameters as above
+    (harness.training_mask).

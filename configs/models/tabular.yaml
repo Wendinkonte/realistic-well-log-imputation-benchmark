@@ -1,0 +1,44 @@
+# Tabular family hyperparameters, transcribed from
+# src/wellog_imputation/models/tabular.py. DOCUMENTATION, NOT A CONTROL FILE.
+#
+# All three treat a window as an unordered (N*T, C) matrix: a missing entry is predicted
+# from the OTHER logs at the same depth. No depth ordering, no neighbouring well.
+# Every model is fitted on the intact TRAINING windows of the fold.
+
+mean:                      # MeanImputer -- the zero-skill floor
+  parameters: none
+  note: >
+    Predicts the training mean of each channel, which is 0 in the fold-local standardised
+    space. Its score is the floor every learned method must clear.
+
+rf:                        # TabularImputer("rf") -- one regressor per log
+  estimator: sklearn.ensemble.RandomForestRegressor
+  n_estimators: 200
+  max_depth: null          # unlimited
+  min_samples_leaf: 2
+  n_jobs: -1
+  random_state: 0
+  note: RF cannot consume NaN, so missing predictors are filled with 0 (the mean).
+
+xgb:                       # TabularImputer("xgb") -- one regressor per log
+  estimator: xgboost.XGBRegressor
+  n_estimators: 300
+  max_depth: 6
+  learning_rate: 0.1
+  subsample: 0.8
+  n_jobs: -1
+  random_state: 0
+
+mice:                      # MICEImputer -- canonical chained equations
+  estimator: sklearn.impute.IterativeImputer
+  inner_estimator: sklearn.linear_model.BayesianRidge
+  max_iter: 20
+  tol: 1.0e-3
+  initial_strategy: mean
+  sample_posterior: false  # point imputation, no sampling -> deterministic
+  random_state: 0
+  note: >
+    On blackout rows whose predictors are themselves missing, IterativeImputer falls back
+    to the TRAINING means. Being a regularised linear model, MICE therefore degrades
+    gracefully towards the mean rather than extrapolating off-support the way XGBoost
+    does. Expected behaviour, deliberately left uncorrected.

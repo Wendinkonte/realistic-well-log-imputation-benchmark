@@ -1,0 +1,45 @@
+# Benchmark configuration of the published run.
+#
+# DOCUMENTATION, NOT A CONTROL FILE. These values are transcribed from the code so a
+# reader can see the whole protocol in one place; the code remains the single source of
+# truth, and changing a number here changes nothing. Every entry names the module and
+# symbol it mirrors.
+
+protocol:
+  # src/wellog_imputation/data/pipeline.py
+  window_length: 256          # SLICE  -- samples per window
+  window_stride: 64           # STRIDE -- overlap between consecutive windows
+  depth_step_m: 0.1524        # STEP_M -- 0.5 ft, the native sampling of the corpus
+  logs: [GR, RHOB, NPHI]      # channel order of every (N, T, C) array
+  n_wells: 19                 # wells carrying the complete triplet
+  n_windows: 802              # intact windows in the published corpus
+
+  # src/wellog_imputation/evaluation/harness.py
+  cross_validation: leave-one-well-out
+  n_folds: 19                 # one per well
+  scaling: fold-local per-channel standardisation, fitted on TRAIN windows only
+  training_missingness: mixed -- a quarter of the windows under each scenario
+  metric_space: original physical units (after inverse scaling)
+  scored_positions: artificially masked positions only
+
+  # src/wellog_imputation/metrics/pooled.py
+  aggregation: pooled            # concatenate all folds, then ONE metric
+  # NOT the per-fold mean: that is the reporting pitfall of Section 5.3.
+  primary_metric: pooled R2
+  secondary_metrics: [MAE, RMSE, Pearson r]
+
+replication:
+  # scripts/run_replication.py
+  n_seeds: 5
+  seeds: [0, 1, 2, 3, 4]
+  epochs: 100                 # neural models
+  methods: [mean, locf, rf, xgb, mice, gnn, stgnn, saits, brits, unet, ae]
+
+significance:
+  # src/wellog_imputation/statistics/significance.py
+  omnibus: Friedman            # 19 folds as blocks, per (scenario, seed)
+  post_hoc: Nemenyi            # only when Friedman p < 0.05
+  pairwise: Wilcoxon signed-rank on pre-registered contested pairs
+  alpha: 0.05
+  # src/wellog_imputation/statistics/bootstrap.py
+  bootstrap: by-well cluster bootstrap, B = 5000, paired for method differences

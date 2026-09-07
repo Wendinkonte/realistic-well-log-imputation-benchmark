@@ -1,0 +1,53 @@
+# Spatial family hyperparameters, transcribed from
+# src/wellog_imputation/models/spatial.py. DOCUMENTATION, NOT A CONTROL FILE.
+#
+# These are the only models that read a neighbouring well.
+
+grid:
+  description: all wells resampled onto one shared depth axis -> tensor (W, Dtot, C)
+  depth_step_m: 0.1524
+  padding: NaN outside each well's logged interval
+
+graph:
+  built_from: projected surface coordinates (Lambert-93 / RGF93 in the study)
+  k_neighbours: 8
+  weight: exp(-d^2 / (2 * scale^2))
+  scale: median of the non-zero pairwise distances (km)
+  self_loop: true
+  normalisation: row-wise
+
+model:                     # STGNN
+  hidden: 64
+  layers: 3
+  input_layer: Linear(2C, hidden)      # values concatenated with the observed mask
+  spatial_conv: einsum('wv,bvtc->bwtc', A, h) then Linear(hidden, hidden), residual
+  temporal_conv: Conv1d(hidden, hidden, kernel_size=5, padding=2), residual
+  activation: GELU
+  output_layer: Linear(hidden, C)
+
+variants:
+  stgnn: spatial AND temporal convolutions
+  gnn: spatial convolution only (temporal=False) -- isolates the depth-wise contribution
+
+training:
+  batch: 16
+  epochs: 100
+  optimizer: Adam
+  learning_rate: 1.0e-3
+  target: the target well's row, artificially masked (self-supervision)
+  loss: MSE at the artificially masked positions only
+
+anti_leakage:
+  description: >
+    During training the held-out well's row is blanked in the grid, so it is not even
+    available as a neighbour. At inference the full grid is restored, giving the model
+    the held-out well's observed positions plus its neighbours.
+  monitoring: >
+    The held-out well's loss is recorded per epoch for the convergence curves but is
+    READ-ONLY: it never enters the gradient and never drives model selection (there is no
+    early stopping in the spatial family), so it changes neither the fit nor any reported
+    metric.
+  ablation: >
+    run_spatial(leak=True) deliberately leaves the row in place, letting the target read
+    its own measurements back through the graph. That is the controlled ablation of
+    Section 4.3 and is never a usable configuration.
