@@ -29,7 +29,7 @@ that every method sees identical masked positions within a run
 """
 import numpy as np
 
-__all__ = ["COOCCUR_DEFAULT", "mask_mono", "mask_partial_blackout", "make_eval_set"]
+__all__ = ["COOCCUR_DEFAULT", "dataset_cooccur", "mask_mono", "mask_partial_blackout", "make_eval_set"]
 
 # Empirical distribution of the number of logs missing simultaneously, measured on the
 # clean Paris Basin corpus (3.5 / 75.9 / 20.6 %).
@@ -41,6 +41,37 @@ __all__ = ["COOCCUR_DEFAULT", "mask_mono", "mask_partial_blackout", "make_eval_s
 # precision at which results are reported and does not change any R^2 at three decimals.
 # See docs/REPRODUCIBILITY.md.
 COOCCUR_DEFAULT = {1: 0.035, 2: 0.759, 3: 0.206}
+
+
+_COOCCUR_CACHE = {}
+
+
+def dataset_cooccur(data_dir=None):
+    """Sample-based co-occurrence {K: p} from ``<data_dir>/missingness_real.json``.
+
+    Written by the data pipeline (key ``cooccur_prob_sample``).  Returns ``None`` when the
+    file or key is absent (e.g. the synthetic example), in which case
+    :data:`COOCCUR_DEFAULT` is used.  Revision R1: after excluding the well with an
+    irregular depth step, the measured distribution must follow the rebuilt dataset.
+    """
+    import json, os
+    try:
+        from ..config import get_path
+        path = os.path.join(str(get_path("data_dir", data_dir)), "missingness_real.json")
+    except Exception:
+        return None
+    if path in _COOCCUR_CACHE:
+        return _COOCCUR_CACHE[path]
+    out = None
+    try:
+        with open(path) as fh:
+            d = json.load(fh).get("cooccur_prob_sample")
+        if d:
+            out = {int(k): float(v) for k, v in d.items()}
+    except (OSError, ValueError):
+        out = None
+    _COOCCUR_CACHE[path] = out
+    return out
 
 
 def _empty_mask(shape):
@@ -107,7 +138,7 @@ def mask_partial_blackout(X, cooccur=None, block_frac=(0.3, 0.9), rng=None,
     ndarray of bool, shape (N, T, C)
     """
     rng = rng or np.random.default_rng()
-    cooccur = cooccur or COOCCUR_DEFAULT
+    cooccur = cooccur or dataset_cooccur() or COOCCUR_DEFAULT
     N, T, C = X.shape
     ks = np.array(sorted(cooccur))
     pk = np.array([cooccur[k] for k in ks], float); pk /= pk.sum()

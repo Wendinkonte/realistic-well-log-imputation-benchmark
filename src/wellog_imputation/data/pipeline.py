@@ -11,7 +11,10 @@ Outputs, written into the configured ``data_dir``:
 ``quality_report.csv``
     Per well and log: source mnemonic, unit action taken, coverage percentage.
 ``missingness_real.json``
-    Real missingness statistics (co-occurrence, gap lengths).
+    Real missingness statistics: co-occurrence over samples and over intervals,
+    absent-log combinations, gap-length quartiles (all / interior).
+``depth_qc.csv``
+    Per well: native depth step, jumps, and whether the well is kept (revision R1).
 ``folds_loo.json``
     Leave-one-well-out folds over the wells carrying the complete triplet.
 ``slices.npz``
@@ -107,6 +110,114 @@ def gaps(mask_missing):
     return out
 
 
+#: Tolerance on the native depth step (m).  Wells whose median step differs from
+#: :data:`STEP_M` by more, or whose depth index has a jump > 2 steps or a non-positive
+#: step, are EXCLUDED: every window, gap length and grid offset downstream assumes a
+#: regular 0.1524 m step, and resampling would turn measured samples into interpolated
+#: ones that would then be scored as ground truth.  (Revision R1: one well of the study
+#: corpus was recorded at 0.5 m with a 72.5 m jump.)
+STEP_TOL = 1e-3
+
+
+def check_depth_step(depth, step=STEP_M, tol=STEP_TOL):
+    """Return ``(ok, info)`` for a depth index; ``info`` is written to depth_qc.csv."""
+    d = np.diff(np.asarray(depth, float))
+    if d.size == 0:
+        return False, dict(median_step=np.nan, min_step=np.nan, max_step=np.nan,
+                           n_nonpos=0, n_jumps=0, jump_m=0.0)
+    med = float(np.median(d))
+    jumps = d > 2 * med
+    info = dict(median_step=med, min_step=float(d.min()), max_step=float(d.max()),
+                n_nonpos=int(np.sum(d <= 0)), n_jumps=int(jumps.sum()),
+                jump_m=float(np.sum(d[jumps] - med)))
+    ok = abs(med - step) <= tol and info["n_nonpos"] == 0 and info["n_jumps"] == 0
+    return ok, info
+
+
+def _runs(mask):
+    """(start, end) of the True runs of a boolean vector, end exclusive."""
+    m = np.asarray(mask, bool).view(np.int8)
+    idx = np.where(np.diff(np.concatenate(([0], m, [0]))) != 0)[0]
+    return list(zip(idx[::2], idx[1::2]))
+
+
+def missingness_stats(wells, triplet_wells, step=STEP_M):
+    """Observed missingness on the triplet wells (revision R1 definitions).
+
+    * co-occurrence of the number K of absent logs, counted over depth SAMPLES with at
+      least one absent log (the original definition) and over maximal INTERVALS on which
+      the set of absent logs is constant;
+    * the same for every combination of absent logs;
+    * per-log gap lengths (runs of an absent log), split into interior gaps and edge
+      intervals (touching the top or bottom of the well's depth index), with quartiles
+      in metres -- quartiles rather than a median alone, because with ~100 gaps the
+      median can fall between two clusters.
+    """
+    names = ["GR", "RHOB", "NPHI"]
+    k_smp = np.zeros(4); k_int = np.zeros(4)
+    combo_smp, combo_int, combo_len = {}, {}, {}
+    gl_all, gl_int = [], []
+    per_well = {}
+    for w in triplet_wells:
+        r = wells[w]
+        M = np.stack([~np.isfinite(r[n]) for n in names], 1)          # (L, 3)
+        code = M[:, 0] * 1 + M[:, 1] * 2 + M[:, 2] * 4
+        L = len(code)
+        ng = 0
+        for k in range(1, 4):
+            k_smp[k] += int(np.sum(M.sum(1) == k))
+        # maximal intervals of constant non-empty absent set
+        change = np.flatnonzero(np.diff(code)) + 1
+        bounds = np.concatenate(([0], change, [L]))
+        for a, b in zip(bounds[:-1], bounds[1:]):
+            c = int(code[a])
+            if c == 0:
+                continue
+            key = "+".join(n for i, n in enumerate(names) if c & (1 << i))
+            k_int[bin(c).count("1")] += 1
+            combo_int[key] = combo_int.get(key, 0) + 1
+            combo_smp[key] = combo_smp.get(key, 0) + (b - a)
+            combo_len.setdefault(key, []).append((b - a) * step)
+        for i in range(3):
+            for a, b in _runs(M[:, i]):
+                length_m = (b - a) * step
+                edge = a == 0 or b == L
+                gl_all.append(length_m); ng += 1
+                if not edge:
+                    gl_int.append(length_m)
+        per_well[w] = ng
+
+    def q(v):
+        v = np.asarray(v, float)
+        if v.size == 0:
+            return {}
+        return {f"p{p}": round(float(np.percentile(v, p)), 1) for p in (25, 50, 75, 90)} | {"n": int(v.size)}
+
+    def pct(h):
+        tot = h[1:].sum()
+        return {f"{k}_logs": (round(float(h[k] / tot * 100), 1) if tot else 0.0) for k in range(1, 4)}
+
+    tot_smp = sum(combo_smp.values()) or 1
+    tot_int = sum(combo_int.values()) or 1
+    return {
+        "n_wells_triplet": len(triplet_wells),
+        # original key, sample-based (kept for backward compatibility)
+        "cooccur_pct": pct(k_smp),
+        "cooccur_pct_samples": pct(k_smp),
+        "cooccur_pct_intervals": pct(k_int),
+        "cooccur_prob_sample": {str(k): float(k_smp[k] / max(k_smp[1:].sum(), 1)) for k in range(1, 4)},
+        "combinations": {key: {"share_samples_pct": round(combo_smp[key] / tot_smp * 100, 1),
+                               "share_intervals_pct": round(combo_int[key] / tot_int * 100, 1),
+                               "length_m": q(combo_len[key])}
+                         for key in sorted(combo_smp, key=lambda k: -combo_smp[k])},
+        "gap_length_m_all": q(gl_all),
+        "gap_length_m_interior": q(gl_int),
+        "gaps_per_well": per_well,
+        # original key; see gap_length_m_* for the robust summary
+        "gap_median_m": round(float(np.median(gl_all)), 1) if gl_all else 0.0,
+    }
+
+
 def build_dataset(las_dir=None, out_dir=None, verbose=True):
     """Run the whole pipeline over ``las_dir`` and write the artefacts into ``out_dir``.
 
@@ -128,10 +239,19 @@ def build_dataset(las_dir=None, out_dir=None, verbose=True):
         )
     wells = {}          # well -> dict(depth, GR, RHOB, NPHI)
     qrows = []          # quality-report rows
+    dqc = []            # depth-step QC rows (revision R1)
     for f in files:
         name = os.path.basename(f)[:-4]
         las = read_las(f)
         depth = np.asarray(las.index, float)
+        ok, info = check_depth_step(depth)
+        dqc.append([name, round(info["median_step"], 4), round(info["min_step"], 4),
+                    round(info["max_step"], 4), info["n_nonpos"], info["n_jumps"],
+                    round(info["jump_m"], 2), "kept" if ok else "EXCLUDED"])
+        if not ok:
+            qrows.append([name, "DEPTH", "", f"EXCLUDED(step median={info['median_step']:.4f} m, "
+                          f"jumps={info['n_jumps']}, nonpos={info['n_nonpos']})", 0.0])
+            continue
         rec = {"depth": depth}
         for log in ["GR", "RHOB", "NPHI"]:
             mnem, arr = pick_curve(las.curves, PREFS[log])
@@ -154,30 +274,8 @@ def build_dataset(las_dir=None, out_dir=None, verbose=True):
             triplet_wells.append(w)
     triplet_wells.sort()
 
-    # ---- real missingness on the triplet wells: co-occurrence + gap lengths
-    hist = np.zeros(4)   # index k = number of logs missing simultaneously (1..3)
-    gl = []
-    for w in triplet_wells:
-        r = wells[w]
-        mGR, mR, mN = (~np.isfinite(r["GR"]), ~np.isfinite(r["RHOB"]), ~np.isfinite(r["NPHI"]))
-        nm = mGR.astype(int) + mR.astype(int) + mN.astype(int)
-        sel = nm > 0
-        for k in range(1, 4):
-            hist[k] += int(np.sum(nm[sel] == k))
-        for m in (mGR, mR, mN):
-            gl += gaps(m)
-    hist = hist[1:]
-    gl = np.array(gl) if gl else np.array([0])
-    # A corpus with no gaps at all (the synthetic example) would divide by zero here.
-    # On any real corpus hist.sum() > 0, so this guard changes no published number.
-    hist_total = hist.sum()
-    miss_stats = {
-        "n_wells_triplet": len(triplet_wells),
-        "cooccur_pct": {f"{k}_logs": (round(float(hist[k-1] / hist_total * 100), 1)
-                                      if hist_total else 0.0) for k in range(1, 4)},
-        "gap_samples": {q: float(np.percentile(gl, int(q[1:]))) for q in ["p50", "p75", "p90", "p99"]},
-        "gap_median_m": round(float(np.percentile(gl, 50) * STEP_M), 1),
-    }
+    # ---- real missingness on the triplet wells (revision R1 definitions)
+    miss_stats = missingness_stats(wells, triplet_wells)
 
     # ---- intact windows (length SLICE, all three logs present)
     X, meta = [], []
@@ -203,6 +301,11 @@ def build_dataset(las_dir=None, out_dir=None, verbose=True):
     with open(os.path.join(out_dir, "quality_report.csv"), "w", newline="") as fp:
         wcsv = csv.writer(fp); wcsv.writerow(["well", "log", "mnemo_source", "action", "coverage_%"])
         wcsv.writerows(qrows)
+    with open(os.path.join(out_dir, "depth_qc.csv"), "w", newline="") as fp:
+        wcsv = csv.writer(fp)
+        wcsv.writerow(["well", "median_step_m", "min_step_m", "max_step_m", "n_nonpos",
+                       "n_jumps", "jump_m", "status"])
+        wcsv.writerows(dqc)
     with open(os.path.join(out_dir, "missingness_real.json"), "w") as fp:
         json.dump(miss_stats, fp, indent=2)
     folds = {f"fold_{i}": {"test": [w], "train": [x for x in triplet_wells if x != w]}
@@ -224,6 +327,6 @@ def build_dataset(las_dir=None, out_dir=None, verbose=True):
         print(f"Intact {SLICE}-windows  : {len(X)} (stride={STRIDE})")
         print(f"Real missingness      : 1 log={miss_stats['cooccur_pct']['1_logs']}%  "
               f"2 logs={miss_stats['cooccur_pct']['2_logs']}%  3 logs={miss_stats['cooccur_pct']['3_logs']}%  "
-              f"| median gap {miss_stats['gap_median_m']} m")
+              f"| per-log gap length quartiles (m) {miss_stats['gap_length_m_all']}")
         print(f"Written to            : {out_dir}")
     return summary
