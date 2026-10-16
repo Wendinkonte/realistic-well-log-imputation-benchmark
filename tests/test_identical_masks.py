@@ -35,7 +35,8 @@ def test_masks_vary_across_master_seeds(windows):
 
 def test_seed_table_is_explicit_and_distinct():
     """An explicit table, never hash(scenario) -- Python's string hash is salted."""
-    assert EVAL_SEED == {"single": 1000, "block": 1001, "profile": 1002, "blackout": 1003}
+    assert EVAL_SEED == {"single": 1000, "block": 1001, "profile": 1002, "blackout": 1003,
+                         "blackout_emp": 1004}       # revision R1: empirical blackout
     assert len(set(EVAL_SEED.values())) == len(EVAL_SEED)
 
 

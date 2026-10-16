@@ -16,7 +16,7 @@ import numpy as np
 
 from ..utils.determinism import set_determinism
 
-__all__ = ["LOCFImputer", "SeqImputer", "AEImputer", "UNetImputer"]
+__all__ = ["LOCFImputer", "LOCFWindowImputer", "InterpImputer", "SeqImputer", "AEImputer", "UNetImputer"]
 
 
 def _capture_pypots_losses(fit_call):
@@ -85,6 +85,71 @@ class LOCFImputer:
                         last = col[t]
         return Y
 
+    def impute_well(self, Zwell):
+        """Whole-well carry-forward (revision R1, empirical blackout): same rule applied
+        to the full depth array of the held-out well, so samples outside the window can
+        be used.  ``Zwell`` is (L, C), normalised, NaN where missing."""
+        return self.impute(Zwell[None])[0]
+
+
+class LOCFWindowImputer(LOCFImputer):
+    """LOCF restricted to the window, also in the empirical blackout (revision R1).
+
+    Identical to :class:`LOCFImputer` on the windowed scenarios; in the whole-well
+    empirical blackout it is evaluated through overlapping windows instead of the full
+    well, which isolates what carry-forward gains from samples outside the window
+    (Reviewer 2, comment 2).
+    """
+
+    name = "LOCF-WIN"
+    impute_well = None
+
+
+class InterpImputer:
+    """Interpolation of the same log along depth (revision R1, Reviewer 1 comment 8).
+
+    ``kind='linear'`` or ``'pchip'`` (shape-preserving cubic).  Gaps bracketed by
+    observed samples are interpolated; gaps touching a window edge take the nearest
+    observed value (constant extrapolation); a log with no observed sample in the
+    window takes 0, the training mean in normalised space (as LOCF/MEAN).
+    """
+
+    def __init__(self, kind="linear"):
+        self.kind = kind; self.name = f"INTERP-{kind.upper()}"
+
+    def fit(self, Xin, Xtrue, M):
+        pass
+
+    def _fill(self, col):
+        obs = np.isfinite(col)
+        if obs.all():
+            return col
+        if not obs.any():
+            return np.zeros_like(col)
+        t = np.arange(len(col)); to = t[obs]; yo = col[obs]
+        out = col.copy()
+        if self.kind == "pchip" and obs.sum() >= 3:
+            from scipy.interpolate import PchipInterpolator
+            f = PchipInterpolator(to, yo, extrapolate=False)
+            out[~obs] = f(t[~obs])
+        else:
+            out[~obs] = np.interp(t[~obs], to, yo)          # constant beyond the ends
+        nan = np.isnan(out)                                 # pchip outside [to0, to-1]
+        if nan.any():
+            out[nan] = np.interp(t[nan], to, yo)
+        return out
+
+    def impute(self, Xev):
+        Y = Xev.copy(); N, T, C = Y.shape
+        for i in range(N):
+            for c in range(C):
+                Y[i, :, c] = self._fill(Y[i, :, c])
+        return Y
+
+    def impute_well(self, Zwell):
+        """Whole-well interpolation (empirical blackout), see :meth:`LOCFImputer.impute_well`."""
+        return self.impute(Zwell[None])[0]
+
 
 class SeqImputer:
     """SAITS / BRITS through PyPOTS, self-supervised on the intact (NaN-free) windows.
@@ -92,8 +157,15 @@ class SeqImputer:
     Hyperparameters are listed in configs/models/sequential.yaml.
     """
 
-    def __init__(self, kind="saits", epochs=20, batch_size=32, device=None, seed=0):
-        self.kind = kind; self.name = kind.upper()
+    def __init__(self, kind="saits", epochs=20, batch_size=32, device=None, seed=0,
+                 train_on="intact"):
+        # train_on="intact"   : original protocol (PyPOTS internal masking on intact windows);
+        # train_on="corrupted": revision R1 (Reviewer 2, comment 3) -- PyPOTS receives the
+        #   curriculum-corrupted windows Xin (NaN at the masked positions, including whole
+        #   absent logs), so these models see the same corruption as U-Net, AE and the
+        #   spatial models.  PyPOTS still applies its own masking on the observed values.
+        self.kind = kind; self.train_on = train_on
+        self.name = kind.upper() + ("-MIX" if train_on == "corrupted" else "")
         self.epochs = epochs; self.batch_size = batch_size; self.seed = seed
         import torch
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -131,7 +203,8 @@ class SeqImputer:
         # monitors the TRAINING loss for patience.  The loss is captured through the
         # PyPOTS logger, changing nothing in the fit itself.
         self.history = _capture_pypots_losses(lambda:
-            self.model.fit({"X": Xtrue.astype(np.float32)}))   # PyPOTS masks internally
+            self.model.fit({"X": (Xin if self.train_on == "corrupted" else Xtrue)
+                            .astype(np.float32)}))   # PyPOTS masks internally
 
     def impute(self, Xev):
         out = self.model.impute({"X": Xev.astype(np.float32)})

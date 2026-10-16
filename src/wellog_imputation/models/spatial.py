@@ -43,8 +43,8 @@ from ..masking.scenarios import make_eval_set
 from ..metrics.pooled import LOGS, add_to_pool, metrics, new_pool, pooled_agg
 from ..utils.determinism import set_determinism
 
-__all__ = ["SpatialGrid", "STGNN", "SpatialImputer", "run_spatial", "build_adjacency",
-           "load_coords"]
+__all__ = ["SpatialGrid", "STGNN", "SpatialImputer", "SpatialBaseline", "run_spatial",
+           "build_adjacency", "load_coords", "graph_adjacency", "make_spatial"]
 
 #: Native depth sampling step of the corpus, in metres (0.5 ft).
 STEP = 0.1524
@@ -172,7 +172,8 @@ class SpatialGrid:
             G[i, off:off+L, :] = a[:, 1:4]
         self.G = G                                            # (W, Dtot, 3)
         self.widx = {w: i for i, w in enumerate(self.wells)}
-        self.A = build_adjacency(load_coords(self.wells, coords_csv))
+        self.P = load_coords(self.wells, coords_csv)          # (W, 2) Lambert-93, m
+        self.A = build_adjacency(self.P)
 
     def gstart(self, well, local_start):
         """Convert a within-well window start into a grid index."""
@@ -215,14 +216,27 @@ class STGNN(nn.Module):
 class SpatialImputer:
     """Fit an :class:`STGNN` on the well grid and impute one window at a time."""
 
-    def __init__(self, kind="stgnn", epochs=30, batch=16, lr=1e-3, device=None, seed=0):
-        self.kind = kind; self.name = kind.upper()
+    def __init__(self, kind="stgnn", epochs=30, batch=16, lr=1e-3, device=None, seed=0,
+                 graph="knn"):
+        # graph (revision R1, Reviewer 2 comment 6):
+        #   "knn"      -- the paper's 8-NN Gaussian graph;
+        #   "identity" -- no neighbours (A = I): the model sees only the target well's own
+        #                 row, which isolates what the neighbours contribute;
+        #   "shuffled" -- the same kNN construction on randomly permuted coordinates:
+        #                 same number of neighbours, geographically meaningless.
+        self.kind = kind; self.graph = graph
+        self.name = kind.upper() + ("" if graph == "knn" else f"-{graph.upper()}")
         self.epochs, self.batch, self.lr, self.seed = epochs, batch, lr, seed
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
     def fit(self, grid, train_wells, slices_idx, X_slices, wells_of_slice, starts, scaler,
-            test_well=None, train_slices=None):
+            test_well=None, train_slices=None, blank_ranges=None):
         """Fit on the training windows of the fold.
+
+        ``blank_ranges`` (revision R1, matched leakage experiment): list of
+        ``(well, local_start)``; the corresponding T-sample depth ranges of that well are
+        set to NaN in the training grid, so those values are never visible as neighbour
+        information.
 
         Parameters
         ----------
@@ -242,7 +256,10 @@ class SpatialImputer:
         Gz = Gz_full.copy()
         if test_well is not None:
             Gz[grid.widx[test_well]] = np.nan
-        A = torch.tensor(grid.A, device=self.device)
+        for bw, bst in (blank_ranges or []):
+            g0 = grid.gstart(bw, int(bst))
+            Gz[grid.widx[bw], g0:g0 + X_slices.shape[1]] = np.nan
+        A = torch.tensor(graph_adjacency(grid, self.graph, self.seed), device=self.device)
         net = STGNN(temporal=(self.kind == "stgnn")).to(self.device)
         opt = torch.optim.Adam(net.parameters(), lr=self.lr)
         rng = np.random.default_rng(self.seed)
@@ -339,6 +356,115 @@ class SpatialImputer:
         return out
 
 
+def graph_adjacency(grid, graph="knn", seed=0):
+    """Adjacency for the graph controls of revision R1 (see :class:`SpatialImputer`)."""
+    if graph == "knn":
+        return grid.A
+    if graph == "identity":
+        return np.eye(len(grid.wells), dtype=np.float32)
+    if graph == "shuffled":
+        perm = np.random.default_rng(10_000 + int(seed)).permutation(len(grid.wells))
+        return build_adjacency(grid.P[perm])
+    raise ValueError(graph)
+
+
+class SpatialBaseline:
+    """Conventional same-depth spatial interpolators (revision R1, Reviewer 1 comment 7).
+
+    At each masked position of the target window, the value is estimated from the
+    TRAINING wells' measured values of the same log at the same grid depth (the held-out
+    well's row is never used as a neighbour):
+
+    * ``idw``    -- inverse-distance weighting (power 2) over all available wells;
+    * ``nnwell`` -- value of the nearest available well;
+    * ``okrige`` -- ordinary kriging with an exponential variogram per log, fitted by
+      weighted least squares on the empirical semivariogram of the training wells
+      (pairs of wells at the same depth, standardised values); falls back to IDW when
+      fewer than 3 wells are available or the system is singular.
+
+    Positions with no available neighbour take 0 (the training mean, normalised space).
+    Observed (unmasked) values of the target window are returned unchanged.
+    """
+
+    def __init__(self, kind="idw", seed=0, max_pairs=200_000):
+        self.kind = kind; self.name = kind.upper(); self.seed = seed
+        self.max_pairs = max_pairs
+        self.history = None
+
+    def fit(self, grid, train_wells, slices_idx, X_slices, wells_of_slice, starts, scaler,
+            test_well=None, train_slices=None):
+        self.grid = grid; self.scaler = scaler; self.T = X_slices.shape[1]
+        Gz = scaler.transform(grid.G)
+        if test_well is not None:
+            Gz[grid.widx[test_well]] = np.nan
+        self.Gz = Gz
+        self.D = np.sqrt(((grid.P[:, None, :] - grid.P[None, :, :]) ** 2).sum(-1)) / 1000.0
+        self.vario = None
+        if self.kind == "okrige":
+            self.vario = [self._fit_variogram(c) for c in range(Gz.shape[2])]
+        return self
+
+    def _fit_variogram(self, c):
+        """(sill, range_km) of gamma(h) = sill * (1 - exp(-h / range))."""
+        rng = np.random.default_rng(self.seed)
+        V = self.Gz[:, :, c]                                # (W, Dtot)
+        W = V.shape[0]
+        hs, gs = [], []
+        for i in range(W):
+            for j in range(i + 1, W):
+                ok = np.isfinite(V[i]) & np.isfinite(V[j])
+                n = int(ok.sum())
+                if n == 0:
+                    continue
+                d = (V[i, ok] - V[j, ok]) ** 2 / 2.0
+                if n > 2000:
+                    d = rng.choice(d, 2000, replace=False)
+                hs.append(self.D[i, j]); gs.append(float(np.mean(d)))
+        if len(hs) < 3:
+            return (1.0, float(np.median(self.D[self.D > 0])))
+        hs, gs = np.array(hs), np.array(gs)
+        best = None
+        for r in np.geomspace(max(hs.min(), 0.5), hs.max() * 3, 60):
+            f = 1 - np.exp(-hs / r)
+            sill = float(np.dot(f, gs) / max(np.dot(f, f), 1e-12))
+            err = float(np.sum((gs - sill * f) ** 2))
+            if best is None or err < best[0]:
+                best = (err, sill, r)
+        return (max(best[1], 1e-6), best[2])
+
+    def _estimate(self, wi, vals, avail, c):
+        d = self.D[wi, avail]
+        if self.kind == "nnwell":
+            return float(vals[np.argmin(d)])
+        if self.kind == "okrige" and len(vals) >= 3:
+            sill, rr = self.vario[c]
+            gam = lambda h: sill * (1 - np.exp(-h / rr))
+            Dn = self.D[np.ix_(avail, avail)]
+            n = len(vals)
+            K = np.ones((n + 1, n + 1)); K[:n, :n] = gam(Dn); K[n, n] = 0.0
+            rhs = np.ones(n + 1); rhs[:n] = gam(d)
+            try:
+                lam = np.linalg.solve(K, rhs)[:n]
+                if np.all(np.isfinite(lam)):
+                    return float(np.dot(lam, vals))
+            except np.linalg.LinAlgError:
+                pass
+        w = 1.0 / np.maximum(d, 1e-3) ** 2                  # IDW (also okrige fallback)
+        return float(np.dot(w, vals) / w.sum())
+
+    def impute_slice(self, well, start, x_eval_in):
+        T = self.T; gs = self.grid.gstart(well, start); wi = self.grid.widx[well]
+        block = self.Gz[:, gs:gs + T, :]                    # (W, T, C), target row NaN
+        out = x_eval_in.copy()
+        miss = np.argwhere(np.isnan(out))
+        for t, c in miss:
+            col = block[:, t, c]
+            avail = np.where(np.isfinite(col))[0]
+            avail = avail[avail != wi]
+            out[t, c] = self._estimate(wi, col[avail], avail, c) if len(avail) else 0.0
+        return out
+
+
 def _save_curve(curve_dir, kind, seed, wi, fk, history):
     """Persist the per-epoch train/val loss history of one spatial fold."""
     os.makedirs(curve_dir, exist_ok=True)
@@ -350,9 +476,19 @@ def _save_curve(curve_dir, kind, seed, wi, fk, history):
     return p
 
 
+def make_spatial(kind, epochs=30, seed=0):
+    """Build a spatial imputer from a method name (revision R1 names included)."""
+    if kind in ("idw", "nnwell", "okrige"):
+        return SpatialBaseline(kind=kind, seed=seed)
+    base, _, ctrl = kind.partition("_")
+    graph = {"": "knn", "noneigh": "identity", "shuffle": "shuffled"}[ctrl]
+    return SpatialImputer(kind=base, epochs=epochs, seed=seed, graph=graph)
+
+
 def run_spatial(kind="stgnn", folds_subset=None, epochs=30, seed=0, verbose=True, leak=False,
                 on_fold=None, skip_fold=None, curve_dir=None, fold_indices=None,
-                data_dir=None, coords_csv=None):
+                data_dir=None, coords_csv=None, mask_seeds=None, on_fold_mask=None,
+                empirical_reps=0):
     """Train and evaluate a spatial model over every leave-one-well-out fold.
 
     Parameters
@@ -362,8 +498,10 @@ def run_spatial(kind="stgnn", folds_subset=None, epochs=30, seed=0, verbose=True
         well's row blanked during training.  ``True`` deliberately enables the spatial
         leak (the target reads its own measurements through the graph) and exists only
         for the controlled ablation of Section 4.3.
-    on_fold, skip_fold, curve_dir, fold_indices
-        As in :func:`wellog_imputation.evaluation.harness.run_model`.
+    on_fold, skip_fold, curve_dir, fold_indices, mask_seeds, on_fold_mask, empirical_reps
+        As in :func:`wellog_imputation.evaluation.harness.run_model`.  ``kind`` also
+        accepts the revision R1 names (``idw``, ``nnwell``, ``okrige``, ``*_noneigh``,
+        ``*_shuffle``; see :func:`make_spatial`).
 
     Returns
     -------
@@ -378,6 +516,13 @@ def run_spatial(kind="stgnn", folds_subset=None, epochs=30, seed=0, verbose=True
         folds = json.load(fh)
     fold_keys = list(folds["folds"])[: (folds_subset or len(folds["folds"]))]
     scenarios = list(EVAL_SCENARIOS)
+    mask_seeds = list(mask_seeds) if mask_seeds else [seed]
+    emp = None
+    if empirical_reps:
+        from ..evaluation.empirical import EMP_SCENARIO, evaluate_well, load_intervals
+        emp = dict(intervals=load_intervals(data_dir), reps=int(empirical_reps),
+                   wl=np.load(os.path.join(str(data_dir), "well_logs.npz"), allow_pickle=True))
+        scenarios = scenarios + [EMP_SCENARIO]
     res = {sc: {lg: {k: [] for k in ["mae", "rmse", "r2", "cc", "n"]} for lg in (["all"]+LOGS)}
            for sc in scenarios}
     pool = new_pool(scenarios)          # accumulator for the pooled R^2
@@ -393,7 +538,7 @@ def run_spatial(kind="stgnn", folds_subset=None, epochs=30, seed=0, verbose=True
             continue
         tr_mask = wells != test_w
         sc_ = ChannelScaler().fit(X[tr_mask])   # fold-local scaling: TRAIN windows only
-        imp = SpatialImputer(kind=kind, epochs=epochs, seed=seed)
+        imp = make_spatial(kind, epochs=epochs, seed=seed)
         # leak ON -> test_well=None: the held-out well's row stays in the training grid,
         # so the target can read its own values back through the graph.
         imp.fit(grid, set(train_w), list(range(len(X))), X, wells, starts, sc_,
@@ -404,24 +549,41 @@ def run_spatial(kind="stgnn", folds_subset=None, epochs=30, seed=0, verbose=True
         te = np.where(wells == test_w)[0]
         if len(te) == 0:
             continue
-        fold_pool = new_pool(scenarios)      # points of THIS fold only
-        fold_metrics = {}
-        for sc in scenarios:
-            rng_e = np.random.default_rng(eval_seed(sc, seed))
-            Zte = sc_.transform(X[te])
-            _, Zte_in, Mte = make_eval_set(Zte, rng=rng_e, **EVAL_SCENARIOS[sc])
-            preds = np.stack([imp.impute_slice(test_w, int(starts[i]), Zte_in[j])
-                              for j, i in enumerate(te)])
-            pred = sc_.inverse(preds); true = sc_.inverse(Zte)
-            mm = metrics(pred, true, Mte)                  # per-fold (diagnostic only)
-            fold_metrics[sc] = mm
-            add_to_pool(pool, sc, pred, true, Mte, well_idx=wi)        # global aggregate
-            add_to_pool(fold_pool, sc, pred, true, Mte, well_idx=wi)   # per-fold dump
-            for lg in (["all"]+LOGS):
-                for k in ["mae", "rmse", "r2", "cc", "n"]:
-                    res[sc][lg][k].append(mm[lg][k])
-        if on_fold is not None:
-            on_fold(wi, fk, test_w, fold_metrics, fold_pool)
+        def _windows(Z, sts, _w=test_w):
+            return np.stack([imp.impute_slice(_w, int(st), z) for z, st in zip(Z, sts)])
+
+        for k_ms, ms in enumerate(mask_seeds):
+            primary = k_ms == 0
+            fold_pool = new_pool(scenarios)      # points of THIS fold only
+            fold_metrics = {}
+            for sc in scenarios:
+                if emp is not None and sc == "blackout_emp":
+                    rng_x = np.random.default_rng(eval_seed("blackout_emp", ms))
+                    for pred, true, Mte in evaluate_well(
+                            emp["wl"][test_w][:, 1:4], sc_, emp["intervals"], rng_x,
+                            emp["reps"], X.shape[1], _windows):
+                        if primary:
+                            add_to_pool(pool, sc, pred, true, Mte, well_idx=wi)
+                        add_to_pool(fold_pool, sc, pred, true, Mte, well_idx=wi)
+                    continue
+                rng_e = np.random.default_rng(eval_seed(sc, ms))
+                Zte = sc_.transform(X[te])
+                _, Zte_in, Mte = make_eval_set(Zte, rng=rng_e, **EVAL_SCENARIOS[sc])
+                preds = _windows(Zte_in, [starts[i] for i in te])
+                pred = sc_.inverse(preds); true = sc_.inverse(Zte)
+                mm = metrics(pred, true, Mte)                  # per-fold (diagnostic only)
+                fold_metrics[sc] = mm
+                if primary:
+                    add_to_pool(pool, sc, pred, true, Mte, well_idx=wi)    # global aggregate
+                    for lg in (["all"]+LOGS):
+                        for k in ["mae", "rmse", "r2", "cc", "n"]:
+                            res[sc][lg][k].append(mm[lg][k])
+                add_to_pool(fold_pool, sc, pred, true, Mte, well_idx=wi)   # per-fold dump
+            if primary:
+                if on_fold is not None:
+                    on_fold(wi, fk, test_w, fold_metrics, fold_pool)
+            elif on_fold_mask is not None:
+                on_fold_mask(wi, fk, ms, fold_pool)
         if verbose:
             r2b = pooled_agg(pool, ["blackout"])["blackout"]["all"]["r2"]
             print(f"  [{kind}] fold {fk} done | pooled R2(blackout)={r2b:.3f}", flush=True)

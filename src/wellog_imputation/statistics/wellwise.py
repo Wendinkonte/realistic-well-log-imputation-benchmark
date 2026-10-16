@@ -35,9 +35,28 @@ from collections import defaultdict
 
 import numpy as np
 
-from ..models.registry import ORDER, SCENARIOS
+from ..models.registry import LEARNED, ORDER, SCENARIOS
 
-__all__ = ["LOGS3", "build_sufficient_stats", "pooled_r2", "macro_r2", "nrmse_per_well",
+#: Scenarios analysed when present in the dumps (revision R1 adds the empirical blackout).
+ALL_SCENARIOS = SCENARIOS + ["blackout_emp"]
+
+#: Revision R1 test families, one per scenario, kept SEPARATE from the pre-registered
+#: family of the original analysis so that adding tests does not change its Holm
+#: adjustment.  Pairs whose methods are absent from the dumps are skipped.
+REVISION_PAIRS = {
+    "profile": [("saits_mix", "saits"), ("brits_mix", "brits"),
+                ("gnn", "gnn_noneigh"), ("stgnn", "stgnn_noneigh"),
+                ("gnn", "gnn_shuffle"), ("stgnn", "stgnn_shuffle"),
+                ("stgnn", "idw"), ("stgnn", "okrige"), ("mice", "okrige"),
+                ("unet", "ridge"), ("mice", "ridge")],
+    "blackout": [("xgb_miss", "xgb"), ("xgb_chain_asc", "xgb_chain_desc"),
+                 ("saits_mix", "saits"), ("brits_mix", "brits"),
+                 ("locf", "interp_linear")],
+    "blackout_emp": [("locf", "locf_win"), ("locf", "interp_linear")]
+                    + [("locf", m) for m in LEARNED],
+}
+
+__all__ = ["ALL_SCENARIOS", "REVISION_PAIRS", "LOGS3", "build_sufficient_stats", "pooled_r2", "macro_r2", "nrmse_per_well",
            "holm", "rank_biserial", "kendall_w", "friedman_wellwise", "wilcoxon_wellwise",
            "boot_delta_macro_r2", "training_sigmas", "fallback_sigmas", "run_revision"]
 
@@ -70,7 +89,7 @@ def build_sufficient_stats(pool_dir, n_wells=19, methods=None, seeds=None,
 
     Also returns the list of seeds and methods found on disk.
     """
-    scenarios = scenarios or SCENARIOS
+    scenarios = scenarios or ALL_SCENARIOS
     if seeds is None:
         seeds = sorted(int(os.path.basename(p)[4:])
                        for p in glob.glob(os.path.join(pool_dir, "seed*")))
@@ -291,6 +310,7 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
     S, seeds, methods = build_sufficient_stats(pool_dir, n_wells=n_wells)
     if not S:
         raise SystemExit(f"no per-fold dumps under {pool_dir}")
+    SCN = [sc for sc in ALL_SCENARIOS if any(k[2] == sc for k in S)]
 
     # sigma per fold: exact if the dataset is available, otherwise flagged fallback
     sigma_source = "training_fold"
@@ -305,7 +325,7 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
     rows_log, rows_main = [], []
     macro = {}                      # (m, sc) -> list over seeds
     for m in methods:
-        for sc in SCENARIOS:
+        for sc in SCN:
             for lg in LOGS3:
                 r2s, maes, rmses = [], [], []
                 for s in seeds:
@@ -326,7 +346,7 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
     E = {}                          # (m, sc) -> (W,) seed-averaged nRMSE
     rows_well = []
     for m in methods:
-        for sc in SCENARIOS:
+        for sc in SCN:
             per_seed = []
             for s in seeds:
                 if not all((m, s, sc, lg) in S for lg in LOGS3):
@@ -342,7 +362,7 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
        rows_well)
 
     # ---- (c) main table: macro R2 (pooled) + well-equal nRMSE median/IQR + ranks ----------
-    for sc in SCENARIOS:
+    for sc in SCN:
         ms = [m for m in methods if macro.get((m, sc))]
         means = {m: np.mean(macro[(m, sc)]) for m in ms}
         rank = {m: i + 1 for i, m in enumerate(sorted(ms, key=lambda x: -means[x]))}
@@ -359,7 +379,7 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
 
     # ---- (d) Friedman + Kendall W across wells ------------------------------------------
     rows_f = []
-    for sc in SCENARIOS:
+    for sc in SCN:
         ms = [m for m in methods if (m, sc) in E]
         if len(ms) < 3:
             continue
@@ -390,9 +410,28 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
         "W_stat", "p_exact", "p_holm", "reject_holm_0.05", "rank_biserial",
         "delta_r2_macro_A_minus_B", "boot_ci_lo", "boot_ci_hi", "p_boot"], rows_wx)
 
+    # ---- (e2) revision R1 families (training protocol, spatial controls, baselines) ---
+    rows_rv = []
+    for sc, plist in REVISION_PAIRS.items():
+        plist = [(a, b) for a, b in plist if (a, sc) in E and (b, sc) in E]
+        if not plist:
+            continue
+        res = [wilcoxon_wellwise(E[(a, sc)], E[(b, sc)]) for a, b in plist]
+        adj, rej = holm([r["p"] for r in res], alpha=alpha)
+        for (a, b), r, pa, rj in zip(plist, res, adj, rej):
+            d, lo, hi, pb = boot_delta_macro_r2(S, a, b, sc, seeds, n_wells, B=B, rng=rng)
+            rows_rv.append([sc, len(plist), a, b, r["n"], _fmt(r["median_diff"]),
+                            _fmt(r["stat"]), f"{r['p']:.4g}" if np.isfinite(r["p"]) else "",
+                            f"{pa:.4g}" if np.isfinite(pa) else "", bool(rj), _fmt(r["r_rb"], 3),
+                            _fmt(d), _fmt(lo), _fmt(hi), _fmt(pb, 4)])
+    _w(os.path.join(out_dir, "wilcoxon_revision_holm.csv"),
+       ["scenario", "family_size_m", "A", "B", "n_wells", "median_diff_nrmse_A_minus_B",
+        "W_stat", "p_exact", "p_holm", "reject_holm_0.05", "rank_biserial",
+        "delta_r2_macro_A_minus_B", "boot_ci_lo", "boot_ci_hi", "p_boot"], rows_rv)
+
     # ---- (f) all-pairs, as a supplementary family per scenario ----------------------------
     rows_all = []
-    for sc in SCENARIOS:
+    for sc in SCN:
         ms = [m for m in methods if (m, sc) in E]
         plist = list(itertools.combinations(ms, 2))
         res = [wilcoxon_wellwise(E[(a, sc)], E[(b, sc)]) for a, b in plist]
@@ -416,7 +455,7 @@ def run_revision(pool_dir, out_dir, n_wells=19, data_dir=None, pairs=None, B=100
             "sae"], rows_s)
 
     with open(os.path.join(out_dir, "REVISION_README.txt"), "w") as f:
-        f.write(f"seeds={seeds}\nmethods={methods}\nsigma_source={sigma_source}\n"
+        f.write(f"seeds={seeds}\nmethods={methods}\nscenarios={SCN}\nsigma_source={sigma_source}\n"
                 f"bootstrap_B={B}\nalpha={alpha}\nfamily=one per scenario (Holm)\n"
                 f"statistical unit=well (values averaged over seeds before testing)\n")
     return dict(seeds=seeds, methods=methods, sigma_source=sigma_source)

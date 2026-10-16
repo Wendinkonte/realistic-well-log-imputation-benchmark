@@ -23,8 +23,30 @@ FAMILY = {"mean": "tabular", "rf": "tabular", "xgb": "tabular", "mice": "tabular
           "locf": "sequential", "saits": "sequential", "brits": "sequential",
           "unet": "sequential", "ae": "sequential", "gnn": "spatial", "stgnn": "spatial"}
 SC = ["single", "block", "profile", "blackout"]
+SC_ALL = SC + ["blackout_emp"]
+DISPLAY.update({"locf_win": "LOCF (window)", "ridge": "Ridge", "knn": "kNN",
+                "interp_linear": "Linear interp.", "interp_pchip": "PCHIP interp.",
+                "xgb_miss": "XGBoost (miss.-aware)", "xgb_chain_asc": "XGBoost chain (asc.)",
+                "xgb_chain_desc": "XGBoost chain (desc.)", "saits_mix": "SAITS (curriculum)",
+                "brits_mix": "BRITS (curriculum)", "idw": "IDW", "nnwell": "Nearest well",
+                "okrige": "Ordinary kriging", "gnn_noneigh": "GNN (no neighbours)",
+                "stgnn_noneigh": "ST-GNN (no neighbours)", "gnn_shuffle": "GNN (shuffled)",
+                "stgnn_shuffle": "ST-GNN (shuffled)"})
+FAMILY.update({"locf_win": "sequential", "ridge": "tabular", "knn": "tabular",
+               "interp_linear": "sequential", "interp_pchip": "sequential",
+               "xgb_miss": "tabular", "xgb_chain_asc": "tabular", "xgb_chain_desc": "tabular",
+               "saits_mix": "sequential", "brits_mix": "sequential", "idw": "spatial",
+               "nnwell": "spatial", "okrige": "spatial", "gnn_noneigh": "spatial",
+               "stgnn_noneigh": "spatial", "gnn_shuffle": "spatial", "stgnn_shuffle": "spatial"})
 LOGS = ["GR", "RHOB", "NPHI"]
 UNITS = {"GR": "gAPI", "RHOB": "g\\,cm$^{-3}$", "NPHI": "frac."}
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return float("-inf")
 
 
 def rd(path):
@@ -57,17 +79,22 @@ def methods_in(rows):
     return [m for m in ORDER if m in present] + sorted(present - set(ORDER))
 
 
-def tab_main(rows, out):
+def tab_main(rows, out, subset="main"):
     by = {(r["method"], r["scenario"]): r for r in rows}
-    ms = methods_in(rows)
-    best = {sc: max((m for m in ms if (m, sc) in by), key=lambda m: float(by[(m, sc)]["r2_macro_mean"]))
-            for sc in SC if any((m, sc) in by for m in ms)}
-    L = [r"\begin{tabular}{@{}llcccc@{}}", r"\toprule",
-         r"Family & Method & \texttt{single} & \texttt{block} & \texttt{profile} & \texttt{blackout} \\",
-         r"\midrule"]
+    allm = methods_in(rows)
+    ms = [m for m in allm if (m in ORDER) == (subset == "main")]
+    if not ms:
+        return
+    sc_list = [sc for sc in SC_ALL if any((m, sc) in by for m in ms)]
+    suffix = "" if subset == "main" else "_revision"
+    best = {sc: max((m for m in ms if (m, sc) in by), key=lambda m: _num(by[(m, sc)]["r2_macro_mean"]))
+            for sc in sc_list if any((m, sc) in by for m in ms)}
+    hdr = " & ".join(f"\\texttt{{{sc.replace('_', chr(92) + '_')}}}" for sc in sc_list)
+    L = [r"\begin{tabular}{@{}ll" + "c" * len(sc_list) + r"@{}}", r"\toprule",
+         f"Family & Method & {hdr} \\\\", r"\midrule"]
     for m in ms:
         cells = []
-        for sc in SC:
+        for sc in sc_list:
             r = by.get((m, sc))
             if r is None:
                 cells.append("--"); continue
@@ -75,29 +102,27 @@ def tab_main(rows, out):
             cells.append(f"\\textbf{{{c}}}" if best.get(sc) == m else c)
         L.append(f"{FAMILY.get(m, '')} & {DISPLAY.get(m, m)} & " + " & ".join(cells) + r" \\")
     L += [r"\bottomrule", r"\end{tabular}"]
-    open(os.path.join(out, "tab_main.tex"), "w").write("\n".join(L) + "\n")
+    open(os.path.join(out, f"tab_main{suffix}.tex"), "w").write("\n".join(L) + "\n")
 
-    L = [r"\begin{tabular}{@{}lcccc@{}}", r"\toprule",
-         r"Method & \texttt{single} & \texttt{block} & \texttt{profile} & \texttt{blackout} \\",
-         r"\midrule"]
+    L = [r"\begin{tabular}{@{}l" + "c" * len(sc_list) + r"@{}}", r"\toprule",
+         f"Method & {hdr} \\\\", r"\midrule"]
     for m in ms:
         L.append(DISPLAY.get(m, m) + " & " + " & ".join(
-            by[(m, sc)]["rank_r2_macro"] if (m, sc) in by else "--" for sc in SC) + r" \\")
+            by[(m, sc)]["rank_r2_macro"] if (m, sc) in by else "--" for sc in sc_list) + r" \\")
     L += [r"\bottomrule", r"\end{tabular}"]
-    open(os.path.join(out, "tab_ranks.tex"), "w").write("\n".join(L) + "\n")
+    open(os.path.join(out, f"tab_ranks{suffix}.tex"), "w").write("\n".join(L) + "\n")
 
-    L = [r"\begin{tabular}{@{}lcccc@{}}", r"\toprule",
-         r"Method & \texttt{single} & \texttt{block} & \texttt{profile} & \texttt{blackout} \\",
-         r"\midrule"]
+    L = [r"\begin{tabular}{@{}l" + "c" * len(sc_list) + r"@{}}", r"\toprule",
+         f"Method & {hdr} \\\\", r"\midrule"]
     for m in ms:
         cells = []
-        for sc in SC:
+        for sc in sc_list:
             r = by.get((m, sc))
             cells.append("--" if r is None else
                          f"{f(r['nrmse_well_median'], 2)} [{f(r['nrmse_well_q1'], 2)}, {f(r['nrmse_well_q3'], 2)}]")
         L.append(DISPLAY.get(m, m) + " & " + " & ".join(cells) + r" \\")
     L += [r"\bottomrule", r"\end{tabular}"]
-    open(os.path.join(out, "tab_perwell.tex"), "w").write("\n".join(L) + "\n")
+    open(os.path.join(out, f"tab_perwell{suffix}.tex"), "w").write("\n".join(L) + "\n")
 
 
 def tab_perlog(rows, out):
@@ -108,7 +133,7 @@ def tab_perlog(rows, out):
          f"Method & {hdr} \\\\",
          r"\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}",
          " & " + " & ".join(["$R^2$ & MAE & RMSE"] * 3) + r" \\", r"\midrule"]
-    for sc in SC:
+    for sc in [x for x in SC_ALL if any(k[1] == x for k in by)]:
         L.append(f"\\multicolumn{{10}}{{@{{}}l}}{{\\textit{{\\texttt{{{sc}}}}}}} \\\\")
         for m in ms:
             cells = []
@@ -147,10 +172,17 @@ def tab_tests(fr, wx, out):
 
 def main(rev):
     out = os.path.join(rev, "latex"); os.makedirs(out, exist_ok=True)
-    tab_main(rd(os.path.join(rev, "table_main_revision.csv")), out)
+    tab_main(rd(os.path.join(rev, "table_main_revision.csv")), out, "main")
+    tab_main(rd(os.path.join(rev, "table_main_revision.csv")), out, "revision")
     tab_perlog(rd(os.path.join(rev, "table_perlog_revision.csv")), out)
     tab_tests(rd(os.path.join(rev, "friedman_wellwise.csv")),
               rd(os.path.join(rev, "wilcoxon_wellwise_holm.csv")), out)
+    rv = os.path.join(rev, "wilcoxon_revision_holm.csv")
+    if os.path.exists(rv):
+        tab_tests(rd(os.path.join(rev, "friedman_wellwise.csv")), rd(rv), out)
+        os.replace(os.path.join(out, "tab_wilcoxon.tex"), os.path.join(out, "tab_wilcoxon_revision.tex"))
+        tab_tests(rd(os.path.join(rev, "friedman_wellwise.csv")),
+                  rd(os.path.join(rev, "wilcoxon_wellwise_holm.csv")), out)
     print("->", out, sorted(os.listdir(out)))
 
 

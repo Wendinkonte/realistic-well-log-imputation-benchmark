@@ -129,7 +129,11 @@ the leak made explicit.
 | Ranking stability per seed | `statistics/aggregate.py` :: `aggregate` | `results/significance/ranking_stability.csv` |
 | By-well cluster bootstrap, paired | `statistics/bootstrap.py` :: `boot_r2`, `boot_delta` | `results/bootstrap_ci.csv`, `results/bootstrap_pairwise.csv` |
 
-> **On multiple-comparison correction.** Holm is not applied to the Wilcoxon family. The
+> **Revision R1.** The revised analysis (`statistics/wellwise.py`) applies Holm's
+> step-down correction within each declared scenario family, with the well as the
+> statistical unit; see docs/REVISION_R1.md. The note below describes the original release.
+>
+> **On multiple-comparison correction (original release).** Holm is not applied to the Wilcoxon family. The
 > pairs are pre-registered — they are exactly the ties the article argues about — and
 > each is reported per seed together with the fraction of seeds reaching p < 0.05, which
 > is the quantity the text uses. The Nemenyi post-hoc already carries its own

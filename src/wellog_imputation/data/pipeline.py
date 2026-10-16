@@ -157,6 +157,7 @@ def missingness_stats(wells, triplet_wells, step=STEP_M):
     k_smp = np.zeros(4); k_int = np.zeros(4)
     combo_smp, combo_int, combo_len = {}, {}, {}
     gl_all, gl_int = [], []
+    intervals = []          # every observed interval: [absent-log combination, length in samples]
     per_well = {}
     for w in triplet_wells:
         r = wells[w]
@@ -178,6 +179,7 @@ def missingness_stats(wells, triplet_wells, step=STEP_M):
             combo_int[key] = combo_int.get(key, 0) + 1
             combo_smp[key] = combo_smp.get(key, 0) + (b - a)
             combo_len.setdefault(key, []).append((b - a) * step)
+            intervals.append([key, int(b - a)])
         for i in range(3):
             for a, b in _runs(M[:, i]):
                 length_m = (b - a) * step
@@ -213,6 +215,8 @@ def missingness_stats(wells, triplet_wells, step=STEP_M):
         "gap_length_m_all": q(gl_all),
         "gap_length_m_interior": q(gl_int),
         "gaps_per_well": per_well,
+        # raw intervals, sampled by the empirical-blackout evaluation (revision R1)
+        "intervals": intervals,
         # original key; see gap_length_m_* for the robust summary
         "gap_median_m": round(float(np.median(gl_all)), 1) if gl_all else 0.0,
     }

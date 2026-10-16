@@ -35,6 +35,7 @@ from wellog_imputation.config import get_path
 from wellog_imputation.evaluation.harness import run_model
 from wellog_imputation.metrics.pooled import LOGS, save_pool
 from wellog_imputation.models.factory import factory
+from wellog_imputation.models.factory import REVISION_SPATIAL, REVISION_WITHIN_WELL
 from wellog_imputation.models.registry import FAMILY, SCENARIOS
 
 #: Floor for the significance tests (Friedman/Wilcoxon).  Raise if the budget allows.
@@ -86,38 +87,59 @@ class RawWriter:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         # the temporary name MUST end in .npz, otherwise np.savez appends the extension
         tmp = path[:-4] + ".tmp.npz"
-        save_pool(fold_pool, SCEN, tmp)
+        save_pool(fold_pool, list(fold_pool), tmp)
         os.replace(tmp, path)   # atomic: the fold counts as done only once renamed
 
 
+def _mask_writer(maskvar_dir, seed, method):
+    """on_fold_mask callback: dump the re-evaluation of the same trained model under an
+    extra evaluation-mask seed (revision R1) to
+    ``<maskvar_dir>/seed{S}_mask{M}/{method}/fold{WI}.npz``."""
+    def _w(wi, fk, ms, fold_pool):
+        path = os.path.join(maskvar_dir, f"seed{seed}_mask{ms}", method, f"fold{wi:02d}.npz")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path[:-4] + ".tmp.npz"
+        save_pool(fold_pool, list(fold_pool), tmp)
+        os.replace(tmp, path)
+    return _w
+
+
 def run_one_method(method, seed, epochs, folds_subset, raw_dir, pool_dir, curve_dir,
-                   fold_indices=None, data_dir=None):
+                   fold_indices=None, data_dir=None, mask_seeds=None, maskvar_dir=None,
+                   empirical_reps=0):
     w = RawWriter(seed, method, raw_dir, pool_dir)
+    extra = dict(mask_seeds=mask_seeds, empirical_reps=empirical_reps,
+                 on_fold_mask=(_mask_writer(maskvar_dir, seed, method)
+                               if maskvar_dir and mask_seeds and len(mask_seeds) > 1 else None))
 
     def skip_fold(wi, fk):
         return os.path.exists(w.fold_npz_path(wi))
 
-    if method in ("gnn", "stgnn"):
+    if method in ("gnn", "stgnn") or method in REVISION_SPATIAL:
         from wellog_imputation.models.spatial import run_spatial
         run_spatial(kind=method, folds_subset=folds_subset, epochs=epochs, seed=seed,
                     on_fold=w.on_fold, skip_fold=skip_fold, curve_dir=curve_dir,
-                    fold_indices=fold_indices, data_dir=data_dir)
-    elif method in ("unet", "ae"):
+                    fold_indices=fold_indices, data_dir=data_dir, **extra)
+    elif method in ("unet", "ae", "saits_mix", "brits_mix"):
         # Deep sequential family: the master seed is PROPAGATED to the torch/numpy
         # initialisation of the model (the spatial family's convention), giving
         # determinism within a seed and honest variance between seeds.
         run_model(factory(method, epochs=epochs, seed=seed), method.upper(),
                   folds_subset=folds_subset, seed=seed, on_fold=w.on_fold,
                   skip_fold=skip_fold, curve_dir=curve_dir, fold_indices=fold_indices,
-                  data_dir=data_dir)
+                  data_dir=data_dir, **extra)
     elif method in ("saits", "brits"):
-        run_model(factory(method, epochs=epochs), method.upper(), folds_subset=folds_subset,
+        # Revision R1: the master seed is now passed to SAITS/BRITS as well.  In the
+        # original release it was not (SeqImputer kept its default seed=0), so their
+        # initialisation was identical across replications and their between-seed spread
+        # reflected the evaluation masks only.
+        run_model(factory(method, epochs=epochs, seed=seed), method.upper(), folds_subset=folds_subset,
                   seed=seed, on_fold=w.on_fold, skip_fold=skip_fold, curve_dir=curve_dir,
-                  fold_indices=fold_indices, data_dir=data_dir)
+                  fold_indices=fold_indices, data_dir=data_dir, **extra)
     else:
         run_model(factory(method), method.upper(), folds_subset=folds_subset,
                   seed=seed, on_fold=w.on_fold, skip_fold=skip_fold,
-                  fold_indices=fold_indices, data_dir=data_dir)
+                  fold_indices=fold_indices, data_dir=data_dir, **extra)
 
 
 def main():
@@ -133,12 +155,21 @@ def main():
     ap.add_argument("--out", type=str, default=None,
                     help="results directory (default: configured results_dir)")
     ap.add_argument("--data-dir", type=str, default=None)
+    ap.add_argument("--mask-seeds", type=str, default=None,
+                    help="revision R1: evaluation-mask seeds, e.g. '0,1,2,3,4'. The first is "
+                         "the primary evaluation; the others re-evaluate the same trained "
+                         "model and are written to <results>/pools_maskvar/. Default: --seed.")
+    ap.add_argument("--empirical-reps", type=int, default=0,
+                    help="revision R1: replicates of the empirical whole-well blackout "
+                         "(scenario blackout_emp); 0 disables it")
     args = ap.parse_args()
 
     OUT = str(get_path("results_dir", args.out))
     raw_dir = os.path.join(OUT, "raw")
     pool_dir = os.path.join(OUT, "pools_seeded")
     curve_dir = os.path.join(OUT, "curves")
+    maskvar_dir = os.path.join(OUT, "pools_maskvar")
+    mask_seeds = [int(x) for x in args.mask_seeds.split(",")] if args.mask_seeds else None
 
     methods = args.methods.split(",")
     fold_indices = ([int(x) for x in args.only_folds.split(",")]
@@ -150,10 +181,12 @@ def main():
         n_done = sum(os.path.exists(os.path.join(pool_dir, f"seed{args.seed}", m,
                                                  f"fold{wi:02d}.npz")) for wi in sel)
         t0 = time.time()
-        print(f"\n##### seed{args.seed} {m.upper()} ({FAMILY[m]}) | "
+        print(f"\n##### seed{args.seed} {m.upper()} ({FAMILY.get(m, 'revision')}) | "
               f"{n_done}/{len(list(sel))} target folds already done #####", flush=True)
         run_one_method(m, args.seed, args.epochs, args.folds, raw_dir, pool_dir, curve_dir,
-                       fold_indices=fold_indices, data_dir=args.data_dir)
+                       fold_indices=fold_indices, data_dir=args.data_dir,
+                       mask_seeds=mask_seeds, maskvar_dir=maskvar_dir,
+                       empirical_reps=args.empirical_reps)
         print(f"  -> seed{args.seed} {m} finished in {int(time.time()-t0)}s", flush=True)
     print(f"\n=== seed{args.seed} DONE ===", flush=True)
 

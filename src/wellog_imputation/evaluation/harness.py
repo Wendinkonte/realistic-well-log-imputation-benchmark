@@ -106,7 +106,8 @@ EVAL_SCENARIOS = {
 #:
 #: An explicit table, not ``hash(scenario)``: Python's string hash is salted per process
 #: (PYTHONHASHSEED), so hashing would silently change the masked positions on every run.
-EVAL_SEED = {"single": 1000, "block": 1001, "profile": 1002, "blackout": 1003}
+EVAL_SEED = {"single": 1000, "block": 1001, "profile": 1002, "blackout": 1003,
+             "blackout_emp": 1004}
 
 
 def training_mask(X, rng):
@@ -144,7 +145,8 @@ def _save_curve_generic(curve_dir, model_name, seed, wi, fk, history):
 
 def run_model(make_model, model_name, scenarios=None, folds_subset=None,
               seed=0, verbose=True, on_fold=None, skip_fold=None, curve_dir=None,
-              fold_indices=None, data_dir=None):
+              fold_indices=None, data_dir=None, mask_seeds=None, on_fold_mask=None,
+              empirical_reps=0):
     """Train and evaluate one model over every leave-one-well-out fold.
 
     Parameters
@@ -175,6 +177,17 @@ def run_model(make_model, model_name, scenarios=None, folds_subset=None,
         Run only these fold indices (per-fold parallelism).
     data_dir : path-like, optional
         Overrides the configured dataset directory.
+    mask_seeds : list of int, optional
+        Revision R1 (Reviewer 2, comment 4).  Seeds of the EVALUATION masks, decoupled
+        from ``seed`` (which then only drives the training masks and the model
+        initialisation).  The first one is the primary evaluation (returned pool,
+        ``on_fold``); every further one re-evaluates the SAME trained model and is passed
+        to ``on_fold_mask(wi, fold_key, mask_seed, fold_pool)``.  Default ``[seed]``: the
+        original coupled behaviour.
+    empirical_reps : int
+        Revision R1.  If > 0, also evaluate the empirical whole-well blackout
+        (:mod:`wellog_imputation.evaluation.empirical`) with this many replicates; it
+        appears as scenario ``blackout_emp`` in the pools.
 
     Returns
     -------
@@ -183,6 +196,14 @@ def run_model(make_model, model_name, scenarios=None, folds_subset=None,
     """
     X, wells, F = load(data_dir)
     scenarios = scenarios or list(EVAL_SCENARIOS)
+    mask_seeds = list(mask_seeds) if mask_seeds else [seed]
+    emp = None
+    if empirical_reps:
+        from .empirical import EMP_SCENARIO, evaluate_well, load_intervals
+        _dd = get_path("data_dir", data_dir)
+        emp = dict(intervals=load_intervals(_dd), reps=int(empirical_reps),
+                   wl=np.load(os.path.join(str(_dd), "well_logs.npz"), allow_pickle=True))
+        scenarios = scenarios + [EMP_SCENARIO]
     results = {sc: {lg: {k: [] for k in ["mae", "rmse", "r2", "cc", "n"]} for lg in (["all"]+LOGS)}
                for sc in scenarios}
     pool = new_pool(scenarios)          # accumulator for the pooled R^2
@@ -215,27 +236,44 @@ def run_model(make_model, model_name, scenarios=None, folds_subset=None,
         if curve_dir is not None and getattr(model, "history", None) is not None:
             _save_curve_generic(curve_dir, model_name, seed, wi, fk, model.history)
 
-        fold_pool = new_pool(scenarios)     # points of THIS fold only (per-cell dump)
-        fold_metrics = {}
-        for sc in scenarios:
-            rng_e = np.random.default_rng(eval_seed(sc, seed))
-            _, Zte_in, Mte = make_eval_set(Zte, rng=rng_e, **EVAL_SCENARIOS[sc])
-            pred_z = model.impute(Zte_in)
-            pred = sc_.inverse(pred_z)
-            true = sc_.inverse(Zte)
-            mm = metrics(pred, true, Mte)                 # per-fold (diagnostic only)
-            fold_metrics[sc] = mm
-            add_to_pool(pool, sc, pred, true, Mte, well_idx=wi)        # global aggregate
-            add_to_pool(fold_pool, sc, pred, true, Mte, well_idx=wi)   # per-fold dump
-            for lg in (["all"]+LOGS):
-                for k in ["mae", "rmse", "r2", "cc", "n"]:
-                    results[sc][lg][k].append(mm[lg][k])
-        if on_fold is not None:
-            on_fold(wi, fk, test_w, fold_metrics, fold_pool)
+        for k_ms, ms in enumerate(mask_seeds):
+            primary = k_ms == 0
+            fold_pool = new_pool(scenarios)     # points of THIS fold only (per-cell dump)
+            fold_metrics = {}
+            for sc in scenarios:
+                if emp is not None and sc == "blackout_emp":
+                    rng_x = np.random.default_rng(eval_seed("blackout_emp", ms))
+                    iw = getattr(model, "impute_well", None)
+                    for pred, true, Mte in evaluate_well(
+                            emp["wl"][test_w][:, 1:4], sc_, emp["intervals"], rng_x,
+                            emp["reps"], X.shape[1], lambda Z, st: model.impute(Z),
+                            impute_well=iw):
+                        if primary:
+                            add_to_pool(pool, sc, pred, true, Mte, well_idx=wi)
+                        add_to_pool(fold_pool, sc, pred, true, Mte, well_idx=wi)
+                    continue
+                rng_e = np.random.default_rng(eval_seed(sc, ms))
+                _, Zte_in, Mte = make_eval_set(Zte, rng=rng_e, **EVAL_SCENARIOS[sc])
+                pred_z = model.impute(Zte_in)
+                pred = sc_.inverse(pred_z)
+                true = sc_.inverse(Zte)
+                mm = metrics(pred, true, Mte)                 # per-fold (diagnostic only)
+                fold_metrics[sc] = mm
+                if primary:
+                    add_to_pool(pool, sc, pred, true, Mte, well_idx=wi)    # global aggregate
+                    for lg in (["all"]+LOGS):
+                        for k in ["mae", "rmse", "r2", "cc", "n"]:
+                            results[sc][lg][k].append(mm[lg][k])
+                add_to_pool(fold_pool, sc, pred, true, Mte, well_idx=wi)   # per-fold dump
+            if primary:
+                if on_fold is not None:
+                    on_fold(wi, fk, test_w, fold_metrics, fold_pool)
+            elif on_fold_mask is not None:
+                on_fold_mask(wi, fk, ms, fold_pool)
         if verbose:
             r2b = pooled_agg(pool, ["blackout"])["blackout"]["all"]["r2"] if "blackout" in scenarios else float("nan")
             print(f"  [{model_name}] fold {fk} done | pooled R2(blackout,all)={r2b:.3f}", flush=True)
 
     # Aggregation is the POOLED metric over all folds; per_fold keeps the detail.
-    agg = pooled_agg(pool, scenarios)
+    agg = pooled_agg(pool, [sc for sc in scenarios if sc in results])
     return {"model": model_name, "per_fold": results, "agg": agg, "pool": pool}
