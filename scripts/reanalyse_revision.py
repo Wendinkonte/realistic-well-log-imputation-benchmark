@@ -13,6 +13,7 @@ Reads ``<results>/pools_seeded/seed{S}/{method}/fold*.npz`` (written by
                                   by-well bootstrap 95 % CI of Delta R2_macro
 * ``wilcoxon_allpairs_holm.csv``  all pairs per scenario (supplementary family)
 * ``sufficient_stats_per_well.csv`` only with ``--release-suff`` (check licensing first)
+* ``run_metadata.json``           ``git rev-parse HEAD``, arguments, seeds, methods
 
 Usage:
     python scripts/reanalyse_revision.py [--results DIR] [--out DIR] [--data-dir DIR]
@@ -24,6 +25,7 @@ import os
 import _bootstrap_path  # noqa: F401
 from wellog_imputation.config import get_path
 from wellog_imputation.statistics.wellwise import run_revision
+from wellog_imputation.utils.provenance import write_run_metadata
 
 
 def main():
@@ -42,6 +44,8 @@ def main():
     info = run_revision(os.path.join(R, "pools_seeded"), out, n_wells=a.n_wells,
                         data_dir=a.data_dir, B=a.boot, release_suff=a.release_suff)
     print(f"seeds={info['seeds']} methods={info['methods']} sigma={info['sigma_source']}")
+    write_run_metadata(os.path.join(out, "run_metadata.json"), n_wells=a.n_wells,
+                       bootstrap_B=a.boot, **info)
     print(f"-> {out}")
 
 

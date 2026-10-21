@@ -15,6 +15,6 @@ Sub-packages
 ``utils``       determinism, figure style, anonymisation
 ``config``      path resolution (no absolute path is hard-coded anywhere else)
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = ["__version__", "config"]

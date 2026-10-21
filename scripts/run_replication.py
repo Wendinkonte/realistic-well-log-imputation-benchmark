@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Multi-seed replication of the full benchmark (paper Section 5.5).
 
-For ONE master seed, runs the whole matrix ``methods x scenarios x 19 LOO folds``
+For ONE master seed, runs the whole matrix ``methods x scenarios x LOO folds``
 WITHOUT changing anything in the experimental design (architectures, hyperparameters,
 CV scheme, scenarios).  The master seed drives every source of randomness -- evaluation
 masks (by derivation), training masks, torch/numpy initialisation, shuffles -- giving
@@ -18,6 +18,9 @@ Outputs (append-only, robust to SLURM preemption):
     its presence is the RESUME MARKER: re-running the same command skips finished folds.
 ``<results>/curves/curve_{method}_seed{S}_fold{WI}.npz``
     Per-epoch train/val loss of the neural models.
+``<results>/run_metadata/replication_seed{S}_{methods}[_folds{...}].json``
+    ``git rev-parse HEAD`` (and whether the tree was dirty), arguments, date.  One file
+    per invocation key, so parallel jobs never write the same file.
 
 Re-running the same command never recomputes an expensive fold (BRITS is ~10 h/seed).
 
@@ -27,6 +30,7 @@ Usage:
 """
 import argparse
 import csv
+import json
 import os
 import time
 
@@ -37,6 +41,7 @@ from wellog_imputation.metrics.pooled import LOGS, save_pool
 from wellog_imputation.models.factory import factory
 from wellog_imputation.models.factory import REVISION_SPATIAL, REVISION_WITHIN_WELL
 from wellog_imputation.models.registry import FAMILY, SCENARIOS
+from wellog_imputation.utils.provenance import write_run_metadata
 
 #: Floor for the significance tests (Friedman/Wilcoxon).  Raise if the budget allows.
 N_SEEDS = 5
@@ -89,6 +94,21 @@ class RawWriter:
         tmp = path[:-4] + ".tmp.npz"
         save_pool(fold_pool, list(fold_pool), tmp)
         os.replace(tmp, path)   # atomic: the fold counts as done only once renamed
+
+
+def n_folds_of(data_dir=None):
+    """Number of leave-one-well-out folds of the dataset (``folds_loo.json``)."""
+    with open(os.path.join(str(get_path("data_dir", data_dir)), "folds_loo.json")) as fh:
+        return int(json.load(fh)["n_folds"])
+
+
+def progress_line(seed, method, pool_dir, sel):
+    """Resume banner: how many of the target folds ``sel`` already have their dump."""
+    sel = list(sel)
+    n_done = sum(os.path.exists(os.path.join(pool_dir, f"seed{seed}", method,
+                                             f"fold{wi:02d}.npz")) for wi in sel)
+    return (f"##### seed{seed} {method.upper()} ({FAMILY.get(method, 'revision')}) | "
+            f"{n_done}/{len(sel)} target folds already done #####")
 
 
 def _mask_writer(maskvar_dir, seed, method):
@@ -176,13 +196,19 @@ def main():
                     if args.only_folds else None)
     print(f"=== REPLICATION seed={args.seed} | epochs={args.epochs} | methods={methods}"
           f" | folds={fold_indices if fold_indices is not None else 'all'} ===", flush=True)
+    n_folds = n_folds_of(args.data_dir)
+    if args.folds is not None:
+        n_folds = min(n_folds, args.folds)
+    tag = f"seed{args.seed}_" + "-".join(methods) + (
+        f"_folds{'-'.join(map(str, fold_indices))}" if fold_indices is not None else "")
+    write_run_metadata(os.path.join(OUT, "run_metadata", f"replication_{tag}.json"),
+                       seed=args.seed, methods=methods, n_folds=n_folds,
+                       fold_indices=fold_indices, mask_seeds=mask_seeds,
+                       empirical_reps=args.empirical_reps, epochs=args.epochs)
     for m in methods:
-        sel = fold_indices if fold_indices is not None else range(19)
-        n_done = sum(os.path.exists(os.path.join(pool_dir, f"seed{args.seed}", m,
-                                                 f"fold{wi:02d}.npz")) for wi in sel)
+        sel = fold_indices if fold_indices is not None else range(n_folds)
         t0 = time.time()
-        print(f"\n##### seed{args.seed} {m.upper()} ({FAMILY.get(m, 'revision')}) | "
-              f"{n_done}/{len(list(sel))} target folds already done #####", flush=True)
+        print("\n" + progress_line(args.seed, m, pool_dir, sel), flush=True)
         run_one_method(m, args.seed, args.epochs, args.folds, raw_dir, pool_dir, curve_dir,
                        fold_indices=fold_indices, data_dir=args.data_dir,
                        mask_seeds=mask_seeds, maskvar_dir=maskvar_dir,
