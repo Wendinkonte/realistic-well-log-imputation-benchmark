@@ -4,7 +4,8 @@
 Inputs (``--export DIR``; no raw log, no per-fold dump, no package import needed):
 
     wellwise_error_stats.csv   n, sum_y, sum_y2, sse, sae per
-                               (method, scenario, init_seed, mask_seed, rep, log, fold)
+                               (method, scenario, init_seed, mask_seed, rep, log, fold);
+                               ``well`` (W01-W18) is the label of ``fold`` (W{fold+1:02d})
     fold_train_sigma.csv       training standard deviation of each log in each fold
                                (the fold of well w is the one where w is held out)
 
@@ -68,6 +69,9 @@ N, SY, SYY, SSE, SAE = range(5)
 def read_export(d):
     rows = list(csv.DictReader(open(os.path.join(d, "wellwise_error_stats.csv"))))
     NW = 1 + max(int(r["fold"]) for r in rows)                    # fold index 0..NW-1
+    bad = [r for r in rows if "well" in r and r["well"] != f"W{int(r['fold']) + 1:02d}"]
+    if bad:
+        raise SystemExit(f"well label != W{{fold+1}} in {len(bad)} rows")
     cells = defaultdict(lambda: np.zeros((NW, 5)))   # (m, init, mask, sc, lg) -> (W, 5)
     for r in rows:
         a = cells[(r["method"], int(r["init_seed"]), int(r["mask_seed"]), r["scenario"], r["log"])]

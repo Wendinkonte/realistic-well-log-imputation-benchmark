@@ -22,11 +22,12 @@ pools them anyway); the per-replicate breakdown is written only with ``--per-rep
 to a file that must not be released.  ``mask_ids.csv`` keeps per-replicate COUNTS.
 
 Writes (into --out):
-    wellwise_error_stats.csv  method, scenario, init_seed, mask_seed, rep, log, fold,
+    wellwise_error_stats.csv  method, scenario, init_seed, mask_seed, rep, log, fold, well,
                               n, sum_y, sum_y2, sse, sae   (full float64 precision)
                               blackout_emp replicates pooled (see CONFIDENTIALITY)
-    mask_ids.csv              scenario, mask_seed, rep, fold, effective_seed, n_GR, n_RHOB, n_NPHI
-    fold_train_sigma.csv      fold, log, sigma  (training std of the fold, ChannelScaler.sd)
+    mask_ids.csv              scenario, mask_seed, rep, fold, well, effective_seed, n_GR, n_RHOB, n_NPHI
+    fold_train_sigma.csv      fold, well, log, sigma  (training std of the fold, ChannelScaler.sd)
+    well = W{fold+1:02d}: W01-W18 numbered in the order of folds_loo.json
 
 Usage (from the repository root):
     python <export>/make_error_stats_export.py --results RESULTS --data-dir DATA --out EXPORT
@@ -62,7 +63,8 @@ def main():
     F = json.load(open(os.path.join(a.data_dir, "folds_loo.json")))
     fold_keys = list(F["folds"])
     NW = len(fold_keys)
-    WID = list(range(NW))   # fold index; no W label (the W numbering would encode a corpus order)
+    WID = list(range(NW))                           # fold index, order of folds_loo.json
+    WLAB = [f"W{i + 1:02d}" for i in range(NW)]     # W01-W18 in the same order
     T = int(np.load(os.path.join(a.data_dir, "slices.npz"), allow_pickle=True)["X"].shape[1])
 
     # ---- per-replicate counts of blackout_emp, re-drawn from the seeded generator ----
@@ -128,12 +130,12 @@ def main():
                             key = (sc, ms, r, wi, lg)
                             if nref.setdefault(key, int(st[0])) != int(st[0]):
                                 raise SystemExit(f"mask count differs across methods/seeds at {key}")
-                            row = [m, sc, s, ms, r, lg, WID[wi], int(st[0])] + [repr(float(x)) for x in st[1:]]
+                            row = [m, sc, s, ms, r, lg, WID[wi], WLAB[wi], int(st[0])] + [repr(float(x)) for x in st[1:]]
                             (rows_rep if sc == "blackout_emp" else rows).append(row)
         print(f"{m}: done ({len(rows)} rows)", flush=True)
 
     os.makedirs(a.out, exist_ok=True)
-    hdr = ["method", "scenario", "init_seed", "mask_seed", "rep", "log", "fold",
+    hdr = ["method", "scenario", "init_seed", "mask_seed", "rep", "log", "fold", "well",
            "n", "sum_y", "sum_y2", "sse", "sae"]
     with open(os.path.join(a.out, "wellwise_error_stats.csv"), "w", newline="") as f:
         cw = csv.writer(f); cw.writerow(hdr); cw.writerows(rows)
@@ -145,20 +147,20 @@ def main():
     mrows = []
     for (sc, ms, r, wi) in sorted({k[:4] for k in nref}, key=lambda k: (ALL_SCENARIOS.index(k[0]), k[1], k[2], k[3])):
         eff = eval_seed(sc, ms)
-        mrows.append([sc, ms, r, WID[wi], eff] + [nref[(sc, ms, r, wi, lg)] for lg in LOGS3])
+        mrows.append([sc, ms, r, WID[wi], WLAB[wi], eff] + [nref[(sc, ms, r, wi, lg)] for lg in LOGS3])
     with open(os.path.join(a.out, "mask_ids.csv"), "w", newline="") as f:
         cw = csv.writer(f)
-        cw.writerow(["scenario", "mask_seed", "rep", "fold", "effective_seed",
+        cw.writerow(["scenario", "mask_seed", "rep", "fold", "well", "effective_seed",
                      "n_GR", "n_RHOB", "n_NPHI"])
         cw.writerows(mrows)
 
     sig = training_sigmas(a.data_dir)
     with open(os.path.join(a.out, "fold_train_sigma.csv"), "w", newline="") as f:
         cw = csv.writer(f)
-        cw.writerow(["fold", "log", "sigma"])
+        cw.writerow(["fold", "well", "log", "sigma"])
         for wi in range(NW):
             for lg in LOGS3:
-                cw.writerow([WID[wi], lg, repr(float(sig[lg][wi]))])
+                cw.writerow([WID[wi], WLAB[wi], lg, repr(float(sig[lg][wi]))])
     print(f"{len(rows)} stat rows, {len(mrows)} mask rows, methods={len(methods)}, "
           f"cells={len(cells)}, EVAL_SEED={EVAL_SEED}")
 

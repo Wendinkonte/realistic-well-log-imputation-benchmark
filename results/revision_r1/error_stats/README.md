@@ -1,6 +1,6 @@
 # Anonymised per-well error statistics — revision R1 (ACAGS-D-26-00297)
 
-**Status: released with BRGM approval (anonymised: wells identified by fold index only).**
+**Status: released with BRGM approval (anonymised: wells identified by fold index and W01–W18 only).**
 
 These files hold, for every evaluated cell, the *sufficient statistics* of the masked
 points: counts, sums, sums of squares and error sums. Every aggregate metric and test in
@@ -14,7 +14,7 @@ Produced from the per-fold dumps of the single R1 run (code `revision-r1`, commi
 
 ## Files
 
-### `wellwise_error_stats.csv`: one row per (method, scenario, init_seed, mask_seed, rep, log, fold)
+### `wellwise_error_stats.csv`: one row per (method, scenario, init_seed, mask_seed, rep, log, well)
 
 | column | meaning |
 |---|---|
@@ -24,7 +24,8 @@ Produced from the per-fold dumps of the single R1 run (code `revision-r1`, commi
 | `mask_seed` | evaluation-mask seed 0–4. **0 = primary evaluation (main tables)**; 1–4 = the same trained model re-evaluated on other masks |
 | `rep` | replicate index. Always 0. `blackout_emp` has 5 replicates; they are **pooled** in this file (see *Confidentiality*) |
 | `log` | `GR`, `RHOB`, `NPHI` |
-| `fold` | leave-one-well-out fold index, 0–17 (the fold in which that well is held out). Wells carry no other identifier |
+| `fold` | leave-one-well-out fold index, 0–17 (the fold in which that well is held out), in the order of `folds_loo.json` |
+| `well` | anonymised well identifier W01–W18, numbered in the same order: `well = W{fold+1:02d}` |
 | `n` | number of masked (evaluated) samples |
 | `sum_y` | Σ y over these samples, true values in physical units (gAPI, g/cm³, v/v) |
 | `sum_y2` | Σ y² |
@@ -34,7 +35,7 @@ Produced from the per-fold dumps of the single R1 run (code `revision-r1`, commi
 Values are float64, written at full precision (`repr`). They are computed from the
 float32 dumps with the same arithmetic as `wellog_imputation.statistics.wellwise`.
 
-### `mask_ids.csv`: one row per (scenario, mask_seed, rep, fold)
+### `mask_ids.csv`: one row per (scenario, mask_seed, rep, well)
 
 `effective_seed` is the seed of the evaluation-mask generator:
 `eval_seed(scenario, mask_seed) = EVAL_SEED[scenario] + 100000 × mask_seed`, with
@@ -47,7 +48,7 @@ the 5 replicates are successive draws `rep = 0..4` from that one generator.
 not depend on the method or the init seed (checked: identical counts in all 25 × 28
 cells). The positions themselves are not released.
 
-### `fold_train_sigma.csv`: one row per (fold, log)
+### `fold_train_sigma.csv`: one row per (well, log)
 
 `sigma` is the standard deviation of the log over the **training** windows of the fold in
 which the well of index `fold` is held out (`ChannelScaler.sd`, i.e. `nanstd + 1e-8`). This file is
@@ -108,9 +109,13 @@ code repository as `scripts/recompute_from_export.py`; `scripts/make_error_stats
 
 ## Confidentiality
 
-* Wells are identified only by their fold index 0–17. There is no name, depth,
-  coordinate or individual sample. The fold index is not linked to the W-identifiers
-  of the article, as in release 1.0 (`configs/benchmark/folds_loo_19wells.yaml`).
+* Wells are identified only by the fold index 0–17 and the label W01–W18
+  (`well = W{fold+1:02d}`, order of the 18-well `folds_loo.json` of R1). There is no
+  name, depth, coordinate or individual sample.
+* These W01–W18 labels are those of revision R1 (18 wells). They are not the W01–W19
+  of release 1.0: `configs/benchmark/folds_loo_19wells.yaml` documents the 19-well
+  protocol of the original article, where the W ↔ fold correspondence was deliberately
+  left unpublished. It is not used by this export.
 * `sum_y` and `sum_y2` are aggregates of the measured logs. With `n`, they give the
   mean and variance of the true values on the masked samples of each (scenario, mask
   seed, well, log). `fold_train_sigma.csv` gives the training σ of each fold. The
