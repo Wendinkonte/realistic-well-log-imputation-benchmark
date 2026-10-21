@@ -2,7 +2,12 @@
 
 Reference implementation and reproducibility package for a benchmark of **eleven well-log
 imputation methods** across **four missingness regimes**, under a strict, leakage-
-controlled, leave-one-well-out protocol on 19 Paris Basin geothermal wells.
+controlled, leave-one-well-out protocol on 18 Paris Basin geothermal wells.
+
+> **Release 1.1.0 (revision R1).** The depth-step QC added in R1 excludes one well, so the
+> revised benchmark uses **18 wells and 18 folds** (`docs/REVISION_R1.md`). The tables
+> already in `results/` and the sections below that describe them are those of release
+> 1.0, run on the original 19 wells.
 
 [![CI](https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark/actions/workflows/ci.yml/badge.svg)](https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark/actions/workflows/ci.yml)
 

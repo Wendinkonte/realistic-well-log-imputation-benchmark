@@ -27,7 +27,8 @@ repository-code: >-
 abstract: >-
   Reference implementation and reproducibility package for a benchmark of eleven
   well-log imputation methods across four missingness regimes, evaluated under a strict
-  leakage-controlled leave-one-well-out protocol on 19 Paris Basin geothermal wells.
+  leakage-controlled leave-one-well-out protocol on 18 Paris Basin geothermal wells
+  (19 in release 1.0; the depth-step QC of release 1.1.0 excludes one well).
   The package contains the data pipeline, the four masking-scenario generators
   (single, block, profile and the realistic multi-log partial blackout), tabular,
   sequential and spatial graph imputers, the evaluation harness with fold-local scaling

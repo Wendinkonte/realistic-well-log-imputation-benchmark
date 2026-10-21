@@ -55,6 +55,7 @@ results-derived table and figure:
 | `results/robustness/sensitivity_probe.csv` | cross-log sensitivity probe, wells as W01–W19 |
 | `results/robustness/multiwindow_sweep.csv` | multi-window gap-length sweep, wells as W01–W19 |
 | `results/figures/` | the results-derived figures |
+| `results/revision_r1/error_stats/` | revision R1: per-(method, scenario, seed, fold, log) error sufficient statistics, keyed by fold index 0–17; recomputes every R1 table with `scripts/recompute_from_export.py` |
 
 * **A fully synthetic example corpus** (`examples/synthetic/`) so the whole pipeline can
   be executed with no data at all. It is **entirely artificial** — sine waves plus white

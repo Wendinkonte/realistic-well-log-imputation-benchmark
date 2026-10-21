@@ -4,7 +4,7 @@
 Inputs (``--export DIR``; no raw log, no per-fold dump, no package import needed):
 
     wellwise_error_stats.csv   n, sum_y, sum_y2, sse, sae per
-                               (method, scenario, init_seed, mask_seed, rep, log, well)
+                               (method, scenario, init_seed, mask_seed, rep, log, fold)
     fold_train_sigma.csv       training standard deviation of each log in each fold
                                (the fold of well w is the one where w is held out)
 
@@ -67,17 +67,15 @@ N, SY, SYY, SSE, SAE = range(5)
 # ---- reading -----------------------------------------------------------------------------
 def read_export(d):
     rows = list(csv.DictReader(open(os.path.join(d, "wellwise_error_stats.csv"))))
-    wells = sorted({r["well"] for r in rows})                      # W01..W18
-    widx = {w: i for i, w in enumerate(wells)}
-    NW = len(wells)
+    NW = 1 + max(int(r["fold"]) for r in rows)                    # fold index 0..NW-1
     cells = defaultdict(lambda: np.zeros((NW, 5)))   # (m, init, mask, sc, lg) -> (W, 5)
     for r in rows:
         a = cells[(r["method"], int(r["init_seed"]), int(r["mask_seed"]), r["scenario"], r["log"])]
-        a[widx[r["well"]]] += [float(r["n"]), float(r["sum_y"]), float(r["sum_y2"]),
+        a[int(r["fold"])] += [float(r["n"]), float(r["sum_y"]), float(r["sum_y2"]),
                               float(r["sse"]), float(r["sae"])]    # += sums the replicates
     sig = {lg: np.full(NW, np.nan) for lg in LOGS3}
     for r in csv.DictReader(open(os.path.join(d, "fold_train_sigma.csv"))):
-        sig[r["log"]][widx[r["well"]]] = float(r["sigma"])
+        sig[r["log"]][int(r["fold"])] = float(r["sigma"])
     found = {k[0] for k in cells}
     methods = [m for m in ORDER if m in found] + sorted(found - set(ORDER))
     return cells, sig, methods, NW
