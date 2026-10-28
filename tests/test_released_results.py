@@ -1,9 +1,11 @@
 """The released tables must describe the published protocol exactly.
 
-Two things are checked here, both cheap and both easy to break by accident when the
+Three things are checked here, all cheap and all easy to break by accident when the
 repository is pruned for release:
 
-* the 19-fold leave-one-well-out structure survives in the released per-fold metrics;
+* the 19-fold leave-one-well-out structure survives in the v1.0 per-fold metrics
+  (original submission, kept for transparency);
+* the 18-fold structure of the revision R1 survives in results/revision_r1/;
 * no manuscript or LaTeX source has crept back into a code-and-reproducibility tree.
 """
 import csv
@@ -15,26 +17,47 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results"
-FOLD_SPEC = ROOT / "configs" / "benchmark" / "folds_loo_19wells.yaml"
+R1 = RESULTS / "revision_r1"
+FOLD_SPECS = ROOT / "configs" / "benchmark"
 
+# v1.0, original submission
 N_WELLS = 19
 N_SEEDS = 5
 N_SCENARIOS = 4
 
+# revision R1
+N_WELLS_R1 = 18
+R1_SCENARIOS = {"single", "block", "profile", "blackout", "blackout_emp"}
 
-def test_fold_specification_describes_19_leave_one_well_out_folds():
-    spec = yaml.safe_load(FOLD_SPEC.read_text())
-    assert spec["n_wells"] == N_WELLS
-    assert spec["n_folds"] == N_WELLS
+
+def _rows(path):
+    return list(csv.DictReader(path.open(newline="")))
+
+
+@pytest.mark.parametrize("name,n", [("folds_loo_19wells.yaml", N_WELLS),
+                                    ("folds_loo_18wells.yaml", N_WELLS_R1)])
+def test_fold_specification_describes_leave_one_well_out_folds(name, n):
+    spec = yaml.safe_load((FOLD_SPECS / name).read_text())
+    assert spec["n_wells"] == n
+    assert spec["n_folds"] == n
     wells = spec["wells"]
-    assert wells == [f"W{i:02d}" for i in range(1, N_WELLS + 1)]
-    assert len(spec["folds"]) == N_WELLS
+    assert wells == [f"W{i:02d}" for i in range(1, n + 1)]
+    assert len(spec["folds"]) == n
     for fold in spec["folds"].values():
         assert len(fold["test"]) == 1
-        assert len(fold["train"]) == N_WELLS - 1
+        assert len(fold["train"]) == n - 1
         # a well is held out or trained on, never both: that is the whole point
         assert set(fold["test"]).isdisjoint(fold["train"])
         assert set(fold["test"]) | set(fold["train"]) == set(wells)
+
+
+def test_r1_fold_specification_matches_the_error_stats_numbering():
+    """W{fold+1:02d} is the well held out in fold ``fold``, as in the R1 export."""
+    spec = yaml.safe_load((FOLD_SPECS / "folds_loo_18wells.yaml").read_text())
+    for f in range(N_WELLS_R1):
+        assert spec["folds"][f"fold_{f}"]["test"] == [f"W{f + 1:02d}"]
+    pairs = {(int(r["fold"]), r["well"]) for r in _rows(R1 / "error_stats" / "fold_train_sigma.csv")}
+    assert pairs == {(f, f"W{f + 1:02d}") for f in range(N_WELLS_R1)}
 
 
 @pytest.mark.parametrize("name", ["raw_metrics.csv", "raw_metrics_full.csv"])
@@ -57,6 +80,32 @@ def test_significance_blocks_on_19_folds():
     assert rows, "friedman.csv is empty"
     assert {int(r["seed"]) for r in rows} == set(range(N_SEEDS))
     assert len({r["scenario"] for r in rows}) == N_SCENARIOS
+
+
+def test_r1_per_well_tables_cover_all_18_wells():
+    rows = _rows(R1 / "per_well_nrmse.csv")
+    assert {int(r["well_index"]) for r in rows} == set(range(N_WELLS_R1))
+    assert {r["scenario"] for r in rows} == R1_SCENARIOS
+    cells = {}
+    for r in rows:
+        cells.setdefault((r["method"], r["scenario"]), set()).add(int(r["well_index"]))
+    incomplete = [k for k, v in cells.items() if v != set(range(N_WELLS_R1))]
+    assert not incomplete, f"per_well_nrmse.csv: incomplete wells for {incomplete[:5]}"
+
+
+@pytest.mark.parametrize("name", ["friedman_wellwise.csv", "wilcoxon_wellwise_holm.csv",
+                                  "wilcoxon_revision_holm.csv"])
+def test_r1_significance_blocks_on_18_wells(name):
+    rows = _rows(R1 / name)
+    assert rows, f"{name} is empty"
+    assert {int(r["n_wells"]) for r in rows} == {N_WELLS_R1}
+    assert {r["scenario"] for r in rows} <= R1_SCENARIOS
+
+
+def test_r1_main_table_covers_five_scenarios_and_five_seeds():
+    rows = _rows(R1 / "table_main_revision.csv")
+    assert {r["scenario"] for r in rows} == R1_SCENARIOS
+    assert {int(r["n_seeds"]) for r in rows} == {N_SEEDS}
 
 
 def test_no_manuscript_or_latex_source_in_the_tree():
