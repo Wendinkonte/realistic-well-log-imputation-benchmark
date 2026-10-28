@@ -173,7 +173,7 @@ def run(export, out, B=10000, full=False):
 
     def w(name, header, rows):
         with open(os.path.join(out, name), "w", newline="") as fh:
-            cw = csv.writer(fh); cw.writerow(header); cw.writerows(rows)
+            cw = csv.writer(fh, lineterminator="\n"); cw.writerow(header); cw.writerows(rows)
 
     os.makedirs(out, exist_ok=True)
     S = {(m, s, sc, lg): a for (m, s, ms, sc, lg), a in cells.items() if ms == 0}
