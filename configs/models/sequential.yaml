@@ -9,8 +9,9 @@ locf:                      # LOCFImputer
   parameters: none
   note: >
     Last-observation-carry-forward along depth; a gap is filled with the last observed
-    sample above it (0 if the window opens on a gap). Parameter-free, and the winner on
-    the realistic blackout regime.
+    sample above it (0 if the window opens on a gap). Parameter-free.
+    In blackout_emp (R1) LOCF uses the whole well (`impute_well`); `locf_win` is the
+    window-limited control.
 
 saits:                     # SeqImputer("saits"), via PyPOTS
   implementation: pypots.imputation.SAITS

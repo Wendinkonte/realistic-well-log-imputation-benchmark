@@ -1,20 +1,26 @@
-# Missingness scenarios (paper Section 4.3).
+# Missingness scenarios of the revision R1 run (release v1.1-r1).
 #
 # DOCUMENTATION, NOT A CONTROL FILE -- see configs/benchmark/default.yaml.
-# Mirrors src/wellog_imputation/masking/scenarios.py and the EVAL_* tables of
-# src/wellog_imputation/evaluation/harness.py.
+# Mirrors src/wellog_imputation/masking/scenarios.py, src/wellog_imputation/evaluation/
+# empirical.py and the EVAL_* tables of src/wellog_imputation/evaluation/harness.py.
+# Five evaluation scenarios: the four windowed ones of the original article and the
+# empirical whole-well blackout `blackout_emp` added in R1. Where a value of the original
+# submission (v1.0) differs, it is given in a comment labelled v1.0.
 
 # Fixed per-scenario seed of the evaluation masks (harness.EVAL_SEED).
 # An explicit table, never hash(scenario): Python's string hash is salted per process,
 # so hashing would silently change the masked positions between runs.
-# The generator seed actually used is EVAL_SEED[scenario] + master_seed * 100000
-# (harness.eval_seed), which keeps masks identical ACROSS METHODS within a seed and
-# varies them ACROSS SEEDS.
+# The generator seed actually used is EVAL_SEED[scenario] + 100000 * mask_seed
+# (harness.eval_seed), which keeps masks identical ACROSS METHODS AND INIT SEEDS for one
+# mask seed and varies them ACROSS MASK SEEDS. In R1 the evaluation-mask seeds (0-4,
+# --mask-seeds) are separate from the initialisation seeds (0-4, --seed); mask seed 0 is
+# the primary evaluation. (v1.0: one master seed drove both, eval_seed(scenario, seed).)
 eval_seed:
-  single:   1000
-  block:    1001
-  profile:  1002
-  blackout: 1003
+  single:       1000
+  block:        1001
+  profile:      1002
+  blackout:     1003
+  blackout_emp: 1004          # R1 only
 
 scenarios:
   single:
@@ -33,23 +39,42 @@ scenarios:
     # no parameter
 
   blackout:
-    family: partial blackout (the realistic regime)
+    family: partial blackout, windowed
     description: >
-      k logs masked simultaneously over the SAME contiguous interval, with k drawn from
-      the co-occurrence distribution measured on the real corpus. This is the mechanism
-      that accounts for ~96.5 % of real gaps and that no prior benchmark reproduces.
+      k logs masked simultaneously over the SAME contiguous interval of a 256-sample
+      window, with k drawn from the co-occurrence distribution measured on the dataset.
     block_frac: [0.3, 0.9]    # fraction of the window covered, drawn uniformly
     allow_full: true          # k may reach C (all three logs absent together)
-    cooccurrence:             # masking/scenarios.py :: COOCCUR_DEFAULT
-      1: 0.035
-      2: 0.759
-      3: 0.206
-    # NOTE the published single-seed run (job 316552) used the marginally earlier values
-    # {2: 0.761, 3: 0.204}. The ~0.2 percentage-point difference is below the reported
-    # precision and changes no R2 at three decimals. See docs/REPRODUCIBILITY.md.
+    cooccurrence: >
+      read from the dataset, not hard-coded: masking/scenarios.py :: dataset_cooccur
+      reads `cooccur_prob_sample` of <data_dir>/missingness_real.json. For the R1 corpus
+      (18 wells, results/revision_r1/data_qc/missingness_real.json) it is
+      {1: 0.0351, 2: 0.7600, 3: 0.2048}. COOCCUR_DEFAULT = {1: 0.035, 2: 0.759, 3: 0.206}
+      is only the fallback when that file or key is absent (e.g. the synthetic example).
+    # v1.0: COOCCUR_DEFAULT was used as such (19-well corpus); the published v1.0
+    # single-seed run (job 316552) used the marginally earlier {2: 0.761, 3: 0.204}.
+    # See docs/REPRODUCIBILITY.md.
+
+  blackout_emp:               # R1 only -- evaluation/empirical.py
+    family: empirical blackout, whole well
+    description: >
+      Absent-log combination AND length drawn jointly from the intervals observed in the
+      corpus (missingness_real.json, key `intervals`), applied to the held-out well
+      BEFORE windowing. Support: the intact segments (GR, RHOB and NPHI all measured) of
+      at least one window length. In each segment and replicate one observed interval is
+      drawn; if it is at least as long as the segment the whole segment is masked for
+      those logs, otherwise it is placed uniformly inside the segment.
+    replicates: 5             # --empirical-reps; successive draws rep = 0..4 from ONE
+                              # generator seeded eval_seed("blackout_emp", mask_seed)
+    prediction: >
+      windowed methods predict the segment from overlapping windows (stride T/2, mean on
+      the overlaps); whole-well LOCF and interpolation (`impute_well`) see the complete
+      well. `locf_win` keeps LOCF window-limited.
+    training: not used for training (training_mask below has four windowed scenarios)
 
 training_mask:
   description: >
     Training uses MIXED missingness so no model is tuned to one regime: the windows are
-    split into four equal chunks, one per scenario, with the same parameters as above
-    (harness.training_mask).
+    split into four equal chunks, one per windowed scenario (single, block, profile,
+    blackout), with the same parameters as above (harness.training_mask). Its generator
+    is seeded with the initialisation seed, never with the mask seed.

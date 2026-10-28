@@ -1,8 +1,46 @@
 # Paper → code mapping
 
-Every claim of the article, traced to the code that produces it. Section numbers follow
-the submitted article. This is a code and reproducibility repository: the article sources
-are not part of it, and this table is the only link between the two.
+Every claim of the article, traced to the code that produces it. This is a code and
+reproducibility repository: the article sources are not part of it, and this table is the
+only link between the two.
+
+**Two versions.** The section *Revision R1* immediately below maps the revised article
+(release `v1.1-r1`: 18 wells, 801 windows, 18 folds, five scenarios, 28 methods, init
+seeds and evaluation-mask seeds separate). Everything after it is the **v1.0 mapping**
+of the original submission (19 wells, 19 folds, four scenarios, 11 methods), kept for
+the results released outside `results/revision_r1/`; its section numbers are those of
+the submitted article. The code paths it names are unchanged in R1 unless the R1 table
+says otherwise. What changed in the code and why: `docs/REVISION_R1.md`.
+
+---
+
+## Revision R1 (revised article, release v1.1-r1)
+
+| Element | Implementation | Released output |
+|---|---|---|
+| Depth-step QC (one well excluded → 18 wells, 801 windows) | `data/pipeline.py` :: `check_depth_step`, `STEP_TOL`, `build_dataset` → `depth_qc.csv` | `results/revision_r1/data_qc/` |
+| Missingness statistics (samples and intervals, combinations, gap lengths) | `data/pipeline.py` :: `build_dataset` → `missingness_real.json` | `results/revision_r1/data_qc/missingness_real.json` |
+| 18 leave-one-well-out folds | `data/pipeline.py` :: `build_dataset` → `folds_loo.json` | `configs/benchmark/folds_loo_18wells.yaml` |
+| `blackout` co-occurrence read from the dataset | `masking/scenarios.py` :: `dataset_cooccur` (fallback `COOCCUR_DEFAULT`) | `configs/masking/scenarios.yaml` |
+| Empirical whole-well blackout `blackout_emp` (5 replicates) | `evaluation/empirical.py`; `harness.run_model(empirical_reps=...)` | — |
+| Init seeds 0–4 and evaluation-mask seeds 0–4, separate; mask seed = `EVAL_SEED[scenario] + 100000 * mask_seed` | `harness.run_model(seed=..., mask_seeds=...)`, `harness.eval_seed`, `EVAL_SEED` | `results/revision_r1/error_stats/mask_ids.csv` |
+| Initialisation vs mask variability | `scripts/seed_variance.py` | `results/revision_r1/seed_variance.csv` |
+| 17 revision methods (baselines, `_mix`, `xgb_miss`, chained XGBoost, spatial baselines, graph controls) | `models/factory.py` (`REVISION_SPATIAL`, …), `models/tabular.py`, `models/sequential.py`, `models/spatial.py` | — |
+| Per-log pooled R² and R²_macro, per-well nRMSE | `statistics/wellwise.py`, `scripts/reanalyse_revision.py` | `table_main_revision.csv`, `table_perlog_revision.csv`, `per_well_nrmse.csv` |
+| Friedman + Kendall's W, wells as blocks | `statistics/wellwise.py`; `scripts/recompute_from_export.py` | `friedman_wellwise.csv` (28 methods), `friedman_main11.csv` (the 11 methods of the article) |
+| Exact Wilcoxon, rank-biserial r, Holm within each (family, scenario) | `statistics/wellwise.py` (`WILCOXON_PAIRS`, `REVISION_PAIRS`) | `wilcoxon_wellwise_holm.csv`, `wilcoxon_revision_holm.csv`, `wilcoxon_allpairs_holm.csv` |
+| By-well cluster bootstrap of ΔR²_macro (B = 10 000) | `statistics/wellwise.py` :: `boot_delta_macro_r2` | columns `boot_*` of the Wilcoxon tables |
+| Graph gain vs neighbour availability | `scripts/neighbour_availability.py` | `neighbour_gain_spearman.csv` |
+| Matched leakage experiment (window vs well split) | `scripts/run_leak_matched.py` | `results/revision_r1/ablations/leak_matched.csv` |
+| Tables recomputed from the release, without data | `scripts/recompute_from_export.py` | `results/revision_r1/error_stats/` |
+| Figures | `scripts/make_revision_figures.py` | `results/revision_r1/figures/` |
+
+All released R1 outputs are under `results/revision_r1/`; `docs/REVISION_R1.md` maps
+each run output to its released file.
+
+---
+
+# v1.0 mapping (original submission)
 
 > **Note on section numbering.** The article numbers its sections 1 Introduction,
 > 2 Related work, 3 Study area and data, 4 Data and diagnoses, 5 Methods,
@@ -48,9 +86,9 @@ which is what makes the protocol leakage-free.
 | `block` | `masking/scenarios.py` :: `mask_mono(mode="block", block_len=(20,100))` |
 | `profile` | `masking/scenarios.py` :: `mask_mono(mode="profile")` |
 | `blackout` | `masking/scenarios.py` :: `mask_partial_blackout` |
-| Co-occurrence calibration | `masking/scenarios.py` :: `COOCCUR_DEFAULT = {1: 0.035, 2: 0.759, 3: 0.206}` |
+| Co-occurrence calibration | `masking/scenarios.py` :: `COOCCUR_DEFAULT = {1: 0.035, 2: 0.759, 3: 0.206}` (v1.0; R1 reads it from the dataset, see above) |
 | Scenario parameters | `harness.EVAL_SCENARIOS` |
-| Per-scenario mask seeds | `harness.EVAL_SEED`, combined with the master seed by `harness.eval_seed` |
+| Per-scenario mask seeds | `harness.EVAL_SEED`, combined with the master seed by `harness.eval_seed` (v1.0; R1 uses the separate mask seed, see above) |
 | Training-time mixed masking | `harness.training_mask` |
 | Configuration summary | `configs/masking/scenarios.yaml` |
 | Tests | `tests/test_masking.py`, `tests/test_identical_masks.py` |

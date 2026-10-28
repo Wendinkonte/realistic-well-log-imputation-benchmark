@@ -4,6 +4,14 @@ Everything below is taken from the code and the run records of this project. Whe
 value could not be determined from them, the entry says so explicitly rather than
 guessing.
 
+The revised article (revision R1, release `v1.1-r1`) rests on one complete re-run:
+**18 wells, 801 windows, 18 leave-one-well-out folds, 5 initialisation seeds × 5
+evaluation-mask seeds, 28 methods, five scenarios** (`scripts/slurm/revision_r1.sh`, run
+commit `1a3fec5`; parameters in `results/revision_r1/run_metadata.json`). Statements
+about the original submission (release `v1.0`: 19 wells, 802 windows, 19 folds, one
+master seed per run, four scenarios) are labelled **v1.0**; they describe the results
+released outside `results/revision_r1/`.
+
 ---
 
 ## 1. Environment
@@ -37,19 +45,35 @@ bit-comparable environment.
 
 ## 2. Random seeds and what each one controls
 
-The master seed of a run drives every source of randomness. `scripts/run_replication.py`
-is invoked once per master seed; the published campaign used seeds **0, 1, 2, 3, 4**.
+Revision R1 separates two seeds that the original release had merged:
+
+* the **initialisation seed** `S ∈ {0, 1, 2, 3, 4}` (`run_replication.py --seed S`), which
+  drives the training masks and the model initialisation;
+* the **evaluation-mask seed** `m ∈ {0, 1, 2, 3, 4}` (`--mask-seeds 0,1,2,3,4`), which
+  drives only the evaluation masks.
+
+Each model is trained once per `(S, fold)`. It is evaluated on the masks of `m = 0` (the
+**primary evaluation**, used by every main table), and the same trained model is
+re-evaluated on the masks of `m = 1..4` (`pools_maskvar/`). `scripts/seed_variance.py`
+and `results/revision_r1/seed_variance.csv` separate initialisation from mask
+variability.
 
 | Source | Where | How it is seeded |
 |---|---|---|
-| Evaluation masks | `masking/scenarios.make_eval_set` | `np.random.default_rng(eval_seed(scenario, master_seed))` |
-| Per-scenario base seed | `evaluation/harness.EVAL_SEED` | fixed table `{single: 1000, block: 1001, profile: 1002, blackout: 1003}` |
-| Seed derivation | `evaluation/harness.eval_seed` | `EVAL_SEED[scenario] + master_seed * 100000` |
-| Training masks | `harness.training_mask` | `np.random.default_rng(seed)` in `run_model`; `default_rng(self.seed)` in `SpatialImputer.fit` |
-| Neural weight init, dropout, shuffling | torch | `utils/determinism.set_determinism(seed)` |
-| Minibatch shuffle (AE, U-Net, spatial) | `np.random.default_rng(self.seed)` | the model's own seed |
-| RF / XGBoost / MICE | `models/tabular.py` | `random_state=0`, hard-coded |
+| Evaluation masks, windowed scenarios | `masking/scenarios.make_eval_set` | `np.random.default_rng(eval_seed(scenario, m))`, a fresh generator per held-out well |
+| Evaluation masks, `blackout_emp` | `evaluation/empirical.draw_masks` | `np.random.default_rng(eval_seed("blackout_emp", m))` per held-out well; the 5 replicates are successive draws `rep = 0..4` from that generator |
+| Per-scenario base seed | `evaluation/harness.EVAL_SEED` | fixed table `{single: 1000, block: 1001, profile: 1002, blackout: 1003, blackout_emp: 1004}` |
+| Mask-seed derivation | `evaluation/harness.eval_seed` | `EVAL_SEED[scenario] + 100000 * m` |
+| Training masks | `harness.training_mask` | `np.random.default_rng(S)` in `run_model`; `default_rng(self.seed)` in `SpatialImputer.fit` |
+| Neural weight init, dropout, shuffling | torch | `utils/determinism.set_determinism(S)`; SAITS/BRITS receive `S` (in v1.0 they always used seed 0) |
+| Minibatch shuffle (AE, U-Net, spatial) | `np.random.default_rng(self.seed)` | the model's own seed, `S` |
+| RF / XGBoost / MICE and their R1 variants | `models/tabular.py` | `random_state=0`, hard-coded |
 | `PYTHONHASHSEED` | process environment | set to 0 by `set_determinism` and by the SLURM templates |
+| Bootstrap | `statistics/wellwise.py` | one generator `default_rng(20261016)` for all pairs, in a fixed order |
+
+The masks therefore do not depend on the method or on `S`: for one `(scenario, m)`, the
+25 × 28 cells are scored on the same positions (checked on the per-well counts of
+`results/revision_r1/error_stats/mask_ids.csv`).
 
 **Why the seed table is explicit.** Deriving the mask seed from `hash(scenario)` would be
 wrong: Python salts string hashing per process, so the masked positions would silently
@@ -59,13 +83,15 @@ change on every run. `EVAL_SEED` is a literal table for that reason, and
 ### Identical evaluation masks across methods
 
 The fairness guarantee of the benchmark is that every method is scored at exactly the
-same masked positions. It follows from the derivation above: within one `(scenario,
-master_seed)`, every method calls `make_eval_set` with a generator seeded identically, so
-the masks coincide. This is what makes the paired Wilcoxon and the paired bootstrap
-valid. It is verified by `tests/test_identical_masks.py`.
+same masked positions. It follows from the derivation above: within one `(scenario, m)`,
+every method calls the mask generator with an identically seeded generator, so the masks
+coincide. This is what makes the paired Wilcoxon and the paired bootstrap valid. It is
+verified by `tests/test_identical_masks.py`.
 
-Masks DO vary across master seeds. That is deliberate: inter-seed variability is a
-reported result, not noise to be suppressed.
+**v1.0.** The original release had a single master seed `S` per run: `eval_seed(scenario,
+S)` drove the evaluation masks, so masks varied with `S` together with the
+initialisation, and the two sources of variability could not be told apart. There was no
+`blackout_emp` and no entry 1004 in `EVAL_SEED`.
 
 ---
 
@@ -99,7 +125,10 @@ reproduce the reported figures to three decimals, not bit-for-bit. The non-neura
 
 ---
 
-## 4. Two documented departures from the originally published single-seed run
+## 4. Two documented departures from the originally published single-seed run (v1.0)
+
+This section concerns the **v1.0** results only. The R1 run is a complete re-run with
+the R1 code and does not depend on either point.
 
 Both are recorded here because they are the only ways in which re-running this code does
 not reproduce the earlier single-seed numbers bit-for-bit.
@@ -117,8 +146,14 @@ bit-identical** to the original run. It reproduces it within the reported precis
 percentage-point shift is below the precision at which results are reported and changes
 no R² at three decimals. See `masking/scenarios.py :: COOCCUR_DEFAULT`.
 
-All headline numbers in the paper come from the **five-seed replication**, not from the
-earlier single-seed run, so neither departure affects a reported result.
+All headline numbers of the v1.0 article come from the **five-seed replication**, not
+from the earlier single-seed run, so neither departure affects a reported result.
+
+**R1.** `blackout` no longer uses this constant: `masking/scenarios.py ::
+dataset_cooccur` reads the co-occurrence measured on the dataset
+(`missingness_real.json`, `cooccur_prob_sample`), i.e. `{1: 0.0351, 2: 0.7600, 3: 0.2048}`
+on the 18-well corpus (`results/revision_r1/data_qc/missingness_real.json`).
+`COOCCUR_DEFAULT` is only the fallback when that file is absent.
 
 ---
 
@@ -131,13 +166,17 @@ earlier single-seed run, so neither departure affects a reported result.
 | Depth step | 0.1524 m (0.5 ft) | `data/pipeline.py :: STEP_M` |
 | Logs | GR, RHOB, NPHI | `metrics/pooled.py :: LOGS` |
 | Physical bounds | GR [0, 400]; RHOB [1.2, 3.1]; NPHI [-0.05, 1.0] | `data/pipeline.py :: BOUNDS` |
-| Wells (study corpus) | 19 with the complete triplet | derived from the corpus |
-| Windows (study corpus) | 802 intact | derived from the corpus |
-| Folds | 19, leave-one-well-out | `folds_loo.json` |
-| Seeds | 5 (0–4) | `scripts/run_replication.py :: N_SEEDS` |
+| Depth-step QC | step within 1 mm of 0.1524 m, no jump > 2 steps | `data/pipeline.py :: check_depth_step`, `STEP_TOL` |
+| Wells (study corpus) | 18 with the complete triplet passing the QC (v1.0: 19) | derived from the corpus |
+| Windows (study corpus) | 801 intact (v1.0: 802) | derived from the corpus |
+| Folds | 18, leave-one-well-out (v1.0: 19) | `folds_loo.json`; `configs/benchmark/folds_loo_18wells.yaml` |
+| Scenarios | 5: `single`, `block`, `profile`, `blackout`, `blackout_emp` (v1.0: the first four) | `harness.EVAL_SCENARIOS`, `evaluation/empirical.py` |
+| Initialisation seeds | 5 (0–4) | `run_replication.py --seed` |
+| Evaluation-mask seeds | 5 (0–4); 0 = primary | `run_replication.py --mask-seeds` (v1.0: none, masks followed the master seed) |
+| `blackout_emp` replicates | 5 | `run_replication.py --empirical-reps` |
 | Neural epochs | 100 | campaign setting |
-| Bootstrap replicates | 5000 | `scripts/run_bootstrap.py` default |
-| Significance level | 0.05 | `statistics/significance.py` |
+| Bootstrap replicates | 10 000 (v1.0: 5000) | `scripts/reanalyse_revision.py --boot` (v1.0: `scripts/run_bootstrap.py`) |
+| Significance level | 0.05 | `statistics/wellwise.py` |
 
 ---
 
@@ -145,7 +184,9 @@ earlier single-seed run, so neither departure affects a reported result.
 
 `data/pipeline.py :: build_dataset` keeps the wells in which GR, RHOB and NPHI co-exist
 over more than `SLICE` samples, sorts them, and emits one fold per well:
-`{"fold_i": {"test": [w_i], "train": [every other well]}}`.
+`{"fold_i": {"test": [w_i], "train": [every other well]}}`. In R1 this gives 18 folds,
+listed with W-ids in `configs/benchmark/folds_loo_18wells.yaml` (v1.0: 19 folds,
+`folds_loo_19wells.yaml`).
 
 Windows are cut only where all three logs are present over the full 256 samples, so the
 ground truth is never itself imputed. Train/test selection is by well identifier
@@ -167,9 +208,16 @@ verifies the two are not equivalent.
 
 ## 8. Metric aggregation
 
-The primary metric is the **pooled R²**: the masked positions of all 19 folds are
-concatenated and a single R² is computed over them, in original units, at artificially
-masked positions only (`metrics/pooled.py :: pooled_agg`).
+**R1.** The primary metric is the **per-log pooled R²**: for each of GR, RHOB and NPHI,
+the masked positions of all 18 folds are pooled and one R² is computed, in original
+units, at artificially masked positions only. The equal-weight mean of the three
+(R²_macro) is reported as mean ± sd over the 5 initialisation seeds, at mask seed 0
+(`statistics/wellwise.py`). The formulas are written out in
+`results/revision_r1/error_stats/README.md`.
+
+**v1.0.** The primary metric was the pooled R² over the `all` channel: the masked
+positions of all 19 folds, three logs together, concatenated into a single R²
+(`metrics/pooled.py :: pooled_agg`).
 
 Averaging R² per fold instead lets a well contributing one window weigh as much as a well
 contributing 237, which fabricates an apparent collapse of healthy models. That is the
@@ -178,13 +226,28 @@ reporting pitfall of Section 7.3, and
 minimal case.
 
 The pooled `all` channel (three logs together) is inflated by between-channel variance —
-the zero-skill MEAN scores about 0.76 on it, not 0 — so the per-log R² and the MEAN floor
-are always reported alongside it. Read `all` for cross-method comparison within a
-scenario, never as an absolute skill level.
+the zero-skill MEAN scores about 0.76 on it, not 0. This is why R1 uses the per-log R²
+and their mean instead; in the v1.0 tables, read `all` for cross-method comparison within
+a scenario, never as an absolute skill level.
 
 ---
 
 ## 9. Statistical tests
+
+**R1** (`statistics/wellwise.py`, `scripts/reanalyse_revision.py`). The statistical unit
+is the well: per-well nRMSE (standardised by the training σ of the fold) averaged over
+the 5 initialisation seeds.
+
+* **Friedman** with the 18 wells as blocks, per scenario, plus Kendall's W:
+  `friedman_wellwise.csv` (all 28 methods) and `friedman_main11.csv` (the 11 methods of
+  the original article).
+* **Exact paired Wilcoxon** across the 18 wells, rank-biserial r, **Holm** step-down at
+  α = 0.05 within each (family, scenario): the pre-registered family of the article
+  (`wilcoxon_wellwise_holm.csv`), the revision families (`wilcoxon_revision_holm.csv`)
+  and all pairs (`wilcoxon_allpairs_holm.csv`).
+* **By-well cluster bootstrap** of ΔR²_macro, B = 10 000, one seeded generator.
+
+**v1.0** (`statistics/significance.py`, `statistics/bootstrap.py`).
 
 * **Friedman**, per `(scenario, seed)`, with the 19 folds as blocks and only the methods
   complete over every fold.
@@ -192,20 +255,19 @@ scenario, never as an absolute skill level.
   gives p < 0.05.
 * **Paired Wilcoxon** over the 19 folds on pre-registered contested pairs
   (`statistics/significance.py :: WILCOXON_PAIRS`), reported per seed together with the
-  fraction of seeds reaching p < 0.05.
+  fraction of seeds reaching p < 0.05. Holm correction was not applied; the reasoning is
+  stated in `docs/METHODS_MAPPING.md`.
 * **By-well cluster bootstrap** (B = 5000) for confidence intervals, and a *paired*
   variant applying the same well draw to both methods for differences. Resampling wells
   rather than points is essential: points within a well are strongly autocorrelated, so
   an i.i.d. point bootstrap would produce intervals that are far too tight.
 
-Holm correction is not applied to the Wilcoxon family; the reasoning is stated in
-`docs/METHODS_MAPPING.md`.
-
 ---
 
 ## 10. Runtime
 
-Measured on one NVIDIA H100 NVL, from the campaign's SLURM records.
+Measured on one NVIDIA H100 NVL, from the SLURM records of the **v1.0** campaign. The R1
+run used the same decomposition (BRITS and BRITS-mix split per (seed, fold)).
 
 | Job | Budget requested | Notes |
 |---|---|---|
@@ -221,11 +283,23 @@ Measured on one NVIDIA H100 NVL, from the campaign's SLURM records.
 what the run records preserve. Precise per-method elapsed times were not retained in a
 machine-readable form, and none is reconstructed here.
 
-Full campaign scale: 5 seeds × 11 methods × 19 folds × 4 scenarios.
+Full campaign scale, R1: 5 initialisation seeds × 28 methods × 18 folds, each trained
+model evaluated on 5 mask seeds × 5 scenarios (`blackout_emp`: 5 replicates). v1.0:
+5 seeds × 11 methods × 19 folds × 4 scenarios.
 
 ---
 
 ## 11. Reproducing, in order
+
+**R1.** `scripts/slurm/revision_r1.sh build | submit | analyse` (edit the paths and
+partitions first; see `docs/REVISION_R1.md`). Without the data, the R1 tables are
+recomputed from the released error statistics:
+
+```bash
+python scripts/recompute_from_export.py --export results/revision_r1/error_stats --out recomputed
+```
+
+**v1.0.**
 
 ```bash
 pip install -e ".[neural,stats,dev]"
@@ -257,6 +331,7 @@ resubmitting it.
    reproduced from this repository alone. The aggregate outputs they were computed from
    are released instead; see `docs/DATA_AVAILABILITY.md`.
 3. **Well coordinates are required by the spatial family** and are proprietary for the
-   study corpus. GNN and ST-GNN need a coordinate table in the format of
-   `docs/DATA_FORMAT.md`; the other nine methods do not.
+   study corpus. GNN and ST-GNN (and, in R1, their `_noneigh` / `_shuffle` controls and
+   the spatial baselines `idw`, `nnwell`, `okrige`) need a coordinate table in the format
+   of `docs/DATA_FORMAT.md`; the within-well and tabular methods do not.
 4. **Per-method elapsed times** were not retained — Section 10.

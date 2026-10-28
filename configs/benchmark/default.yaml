@@ -1,45 +1,85 @@
-# Benchmark configuration of the published run.
+# Benchmark configuration of the revision R1 run (release v1.1-r1, run commit 1a3fec5).
 #
 # DOCUMENTATION, NOT A CONTROL FILE. These values are transcribed from the code so a
 # reader can see the whole protocol in one place; the code remains the single source of
 # truth, and changing a number here changes nothing. Every entry names the module and
-# symbol it mirrors.
+# symbol it mirrors. The run itself is scripts/slurm/revision_r1.sh; its parameters are
+# also recorded in results/revision_r1/run_metadata.json.
+#
+# The protocol of the ORIGINAL submission (release v1.0, 19 wells) is kept at the end of
+# this file under `v1_0:`, labelled as such. It describes results/ outside revision_r1/.
 
 protocol:
   # src/wellog_imputation/data/pipeline.py
   window_length: 256          # SLICE  -- samples per window
   window_stride: 64           # STRIDE -- overlap between consecutive windows
   depth_step_m: 0.1524        # STEP_M -- 0.5 ft, the native sampling of the corpus
+  depth_step_qc: >
+    wells whose native step differs from STEP_M by more than STEP_TOL (1 mm), or with a
+    depth jump > 2 steps or a non-positive step, are excluded (check_depth_step ->
+    depth_qc.csv). In the study corpus this excludes one well.
   logs: [GR, RHOB, NPHI]      # channel order of every (N, T, C) array
-  n_wells: 19                 # wells carrying the complete triplet
-  n_windows: 802              # intact windows in the published corpus
+  n_wells: 18                 # wells carrying the complete triplet and passing the depth-step QC
+  n_windows: 801              # intact windows in the R1 corpus
 
   # src/wellog_imputation/evaluation/harness.py
   cross_validation: leave-one-well-out
-  n_folds: 19                 # one per well
+  n_folds: 18                 # one per well; configs/benchmark/folds_loo_18wells.yaml
   scaling: fold-local per-channel standardisation, fitted on TRAIN windows only
-  training_missingness: mixed -- a quarter of the windows under each scenario
+  training_missingness: mixed -- a quarter of the windows under each windowed scenario
+  scenarios: [single, block, profile, blackout, blackout_emp]   # see configs/masking/scenarios.yaml
   metric_space: original physical units (after inverse scaling)
   scored_positions: artificially masked positions only
 
-  # src/wellog_imputation/metrics/pooled.py
-  aggregation: pooled            # concatenate all folds, then ONE metric
-  # NOT the per-fold mean: that is the reporting pitfall of Section 5.3.
-  primary_metric: pooled R2
-  secondary_metrics: [MAE, RMSE, Pearson r]
+  # src/wellog_imputation/statistics/wellwise.py
+  primary_metric: >
+    per-log pooled R2 (all wells pooled) for GR, RHOB and NPHI, and their equal-weight
+    mean (R2_macro); mean +- sd over the 5 initialisation seeds
+  secondary_metrics: [MAE, RMSE, per-well nRMSE (standardised by the training sigma of the fold)]
 
 replication:
-  # scripts/run_replication.py
-  n_seeds: 5
-  seeds: [0, 1, 2, 3, 4]
-  epochs: 100                 # neural models
-  methods: [mean, locf, rf, xgb, mice, gnn, stgnn, saits, brits, unet, ae]
+  # scripts/run_replication.py, called by scripts/slurm/revision_r1.sh
+  init_seeds: [0, 1, 2, 3, 4]       # --seed: training masks and model initialisation
+  mask_seeds: [0, 1, 2, 3, 4]       # --mask-seeds: evaluation masks, decoupled from init seeds
+  primary_mask_seed: 0              # main tables; 1-4 re-evaluate the SAME trained model
+  empirical_reps: 5                 # --empirical-reps: replicates of blackout_emp
+  epochs: 100                       # neural models
+  n_methods: 28
+  methods_article: [mean, locf, rf, xgb, mice, saits, brits, unet, ae, gnn, stgnn]
+  methods_revision: [brits_mix, gnn_noneigh, gnn_shuffle, idw, interp_linear, interp_pchip,
+                     knn, locf_win, nnwell, okrige, ridge, saits_mix, stgnn_noneigh,
+                     stgnn_shuffle, xgb_chain_asc, xgb_chain_desc, xgb_miss]
 
 significance:
-  # src/wellog_imputation/statistics/significance.py
-  omnibus: Friedman            # 19 folds as blocks, per (scenario, seed)
-  post_hoc: Nemenyi            # only when Friedman p < 0.05
-  pairwise: Wilcoxon signed-rank on pre-registered contested pairs
+  # src/wellog_imputation/statistics/wellwise.py, scripts/reanalyse_revision.py
+  statistical_unit: well (per-well nRMSE averaged over init seeds before testing)
+  omnibus: Friedman + Kendall's W   # 18 wells as blocks, per scenario
+  pairwise: exact Wilcoxon signed-rank, rank-biserial r
+  multiple_testing: Holm step-down, one family per (family, scenario)
   alpha: 0.05
-  # src/wellog_imputation/statistics/bootstrap.py
-  bootstrap: by-well cluster bootstrap, B = 5000, paired for method differences
+  bootstrap: by-well cluster bootstrap of delta R2_macro, B = 10000, seed 20261016
+
+# ---------------------------------------------------------------------------------------
+# v1.0 -- ORIGINAL SUBMISSION. Kept for the results released before the revision
+# (results/ outside revision_r1/). Not the protocol of the revised article.
+# ---------------------------------------------------------------------------------------
+v1_0:
+  protocol:
+    n_wells: 19               # before the depth-step QC
+    n_windows: 802
+    n_folds: 19
+    scenarios: [single, block, profile, blackout]
+    aggregation: pooled R2 over the concatenation of all folds, logs pooled ("all" channel)
+  replication:
+    # scripts/run_replication.py; one master seed drove training AND evaluation masks
+    n_seeds: 5
+    seeds: [0, 1, 2, 3, 4]
+    epochs: 100
+    methods: [mean, locf, rf, xgb, mice, gnn, stgnn, saits, brits, unet, ae]
+  significance:
+    # src/wellog_imputation/statistics/significance.py, statistics/bootstrap.py
+    omnibus: Friedman            # 19 folds as blocks, per (scenario, seed)
+    post_hoc: Nemenyi            # only when Friedman p < 0.05
+    pairwise: Wilcoxon signed-rank on pre-registered contested pairs, no Holm correction
+    alpha: 0.05
+    bootstrap: by-well cluster bootstrap, B = 5000, paired for method differences
