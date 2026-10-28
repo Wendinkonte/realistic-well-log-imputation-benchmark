@@ -77,7 +77,10 @@ Notation: `c` = method, `ℓ` = log, `w` = well, `s` = init seed. The main table
   main table reports its median, Q1, Q3 and mean over wells.
 * **Friedman**: blocks = wells, treatments = methods, values = seed-averaged nRMSE_w.
   Wells with a missing value are dropped (`scipy.stats.friedmanchisquare`). Kendall's
-  W = χ²_F / (N (k − 1)).
+  W = χ²_F / (N (k − 1)). `friedman_wellwise.csv` uses all 28 methods (k = 28);
+  `friedman_main11.csv` uses the 11 methods of the original article only (`mean`,
+  `locf`, `rf`, `xgb`, `mice`, `saits`, `brits`, `unet`, `ae`, `gnn`, `stgnn`; k = 11),
+  with the same columns.
 * **Wilcoxon**: paired across wells on the seed-averaged nRMSE_w, two-sided,
   `zero_method="wilcox"`, `method="auto"` (exact for 18 wells without ties). The effect
   size is the matched-pairs rank-biserial r. Holm step-down at α = 0.05 is applied within
@@ -102,9 +105,11 @@ python scripts/recompute_from_export.py --export results/revision_r1/error_stats
 The script needs only `numpy` and `scipy`. It reads only `wellwise_error_stats.csv`
 and `fold_train_sigma.csv` (`mask_ids.csv` documents the masks and is not needed) and
 writes `table_main_revision.csv`, `table_perlog_revision.csv`, `per_well_nrmse.csv`,
-`friedman_wellwise.csv`, `wilcoxon_wellwise_holm.csv`, `wilcoxon_revision_holm.csv` and
-`seed_variance.csv`, with the published rounding (`--full` gives full precision).
-`--compare` prints the largest absolute difference per file. The same script is in the
+`friedman_wellwise.csv`, `friedman_main11.csv`, `wilcoxon_wellwise_holm.csv`,
+`wilcoxon_revision_holm.csv` and `seed_variance.csv`, with the published rounding (`--full` gives full precision).
+`--compare` prints the largest absolute difference per file.
+`friedman_main11.csv` is not an output of the R1 run itself: it was first written by
+this script and is released as `results/revision_r1/friedman_main11.csv`. The same script is in the
 code repository as `scripts/recompute_from_export.py`; `scripts/make_error_stats_export.py` built this export from the per-fold dumps (not released).
 
 ## Confidentiality

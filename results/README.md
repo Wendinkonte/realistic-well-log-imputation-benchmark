@@ -34,6 +34,7 @@ results/
 │   ├── table_main_revision.csv, table_perlog_revision.csv   main and per-log tables
 │   ├── per_well_nrmse.csv       NRMSE per (method, scenario, well index)
 │   ├── friedman_wellwise.csv, wilcoxon_*_holm.csv   well-level Friedman, exact Wilcoxon + Holm
+│   ├── friedman_main11.csv      well-level Friedman restricted to the 11 methods of the article
 │   ├── seed_variance.csv        initialisation vs evaluation-mask seed variance
 │   ├── neighbour_gain_spearman.csv  graph-model gain vs neighbour availability
 │   ├── run_metadata.json        commits, seeds, methods, scenarios, test settings

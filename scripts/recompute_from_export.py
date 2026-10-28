@@ -12,8 +12,8 @@ Inputs (``--export DIR``; no raw log, no per-fold dump, no package import needed
 Outputs (``--out DIR``), same layout and rounding as ``scripts/reanalyse_revision.py``:
 
     table_perlog_revision.csv, table_main_revision.csv, per_well_nrmse.csv,
-    friedman_wellwise.csv, wilcoxon_wellwise_holm.csv, wilcoxon_revision_holm.csv,
-    seed_variance.csv
+    friedman_wellwise.csv, friedman_main11.csv, wilcoxon_wellwise_holm.csv,
+    wilcoxon_revision_holm.csv, seed_variance.csv
 
 The main tables use mask seed 0 (the primary evaluation) and sum the replicates of
 ``blackout_emp``; ``seed_variance.csv`` uses every (init seed, mask seed) cell.
@@ -222,17 +222,20 @@ def run(export, out, B=10000, full=False):
                                   "rank_r2_macro", "nrmse_well_median", "nrmse_well_q1",
                                   "nrmse_well_q3", "nrmse_well_mean"], rows_main)
 
-    rows_f = []
-    for sc in SCN:
-        ms = [m for m in methods if (m, sc) in E]
-        if len(ms) < 3:
-            continue
-        X = np.column_stack([E[(m, sc)] for m in ms]); X = X[np.all(np.isfinite(X), axis=1)]
-        chi2, p = friedmanchisquare(*X.T)
-        rows_f.append([sc, len(ms), X.shape[0], f(chi2), g(p, ".3e"),
-                       f(chi2 / (X.shape[0] * (len(ms) - 1)))])
-    w("friedman_wellwise.csv", ["scenario", "k_methods", "n_wells", "chi2_F", "p", "kendall_W"],
-      rows_f)
+    def friedman(pool):                               # Friedman + Kendall W, wells = blocks
+        rows_f = []
+        for sc in SCN:
+            ms = [m for m in pool if (m, sc) in E]
+            if len(ms) < 3:
+                continue
+            X = np.column_stack([E[(m, sc)] for m in ms]); X = X[np.all(np.isfinite(X), axis=1)]
+            chi2, p = friedmanchisquare(*X.T)
+            rows_f.append([sc, len(ms), X.shape[0], f(chi2), g(p, ".3e"),
+                           f(chi2 / (X.shape[0] * (len(ms) - 1)))])
+        return rows_f
+    hdr_f = ["scenario", "k_methods", "n_wells", "chi2_F", "p", "kendall_W"]
+    w("friedman_wellwise.csv", hdr_f, friedman(methods))
+    w("friedman_main11.csv", hdr_f, friedman(ORDER))  # the 11 methods of the original article
 
     hdr = ["scenario", "family_size_m", "A", "B", "n_wells", "median_diff_nrmse_A_minus_B",
            "W_stat", "p_exact", "p_holm", "reject_holm_0.05", "rank_biserial",
@@ -314,9 +317,9 @@ def compare(a_dir, b_dir, names):
     return out
 
 
-FILES = ["table_main_revision.csv", "friedman_wellwise.csv", "wilcoxon_wellwise_holm.csv",
-         "wilcoxon_revision_holm.csv", "table_perlog_revision.csv", "per_well_nrmse.csv",
-         "seed_variance.csv"]
+FILES = ["table_main_revision.csv", "friedman_wellwise.csv", "friedman_main11.csv",
+         "wilcoxon_wellwise_holm.csv", "wilcoxon_revision_holm.csv",
+         "table_perlog_revision.csv", "per_well_nrmse.csv", "seed_variance.csv"]
 
 
 def main():

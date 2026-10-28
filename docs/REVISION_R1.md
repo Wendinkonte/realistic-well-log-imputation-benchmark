@@ -55,6 +55,7 @@ Branch `revision-r1`. Reviewer comments are referenced as R1-n / R2-n.
 
 | run output (`$OUT` / `$DATA` of `scripts/slurm/revision_r1.sh`) | released as | notes |
 |---|---|---|
+| — (not written by the run) | `results/revision_r1/friedman_main11.csv` | Friedman + Kendall's W on the 11 methods of the article, written by `scripts/recompute_from_export.py` from the export |
 | `$OUT/revision/table_main_revision.csv`, `table_perlog_revision.csv`, `per_well_nrmse.csv`, `friedman_wellwise.csv`, `wilcoxon_wellwise_holm.csv`, `wilcoxon_allpairs_holm.csv`, `wilcoxon_revision_holm.csv`, `seed_variance.csv` | `results/revision_r1/` | unchanged |
 | `$OUT/revision/neighbour_gain_spearman.csv` | `results/revision_r1/` | unchanged |
 | `$OUT/revision/neighbour_availability.csv` | not released | per-well nearest-neighbour distance |

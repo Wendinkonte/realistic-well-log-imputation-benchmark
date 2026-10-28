@@ -46,7 +46,8 @@ results-derived table and figure:
 | `results/revision_r1/error_stats/` | per-(method, scenario, seed, fold, log) error sufficient statistics, fold index 0–17 and well W01–W18; recomputes every R1 table with `scripts/recompute_from_export.py` |
 | `results/revision_r1/table_main_revision.csv`, `table_perlog_revision.csv` | main table (`r2_macro`, ranks, per-well NRMSE quartiles) and per-log R², MAE, RMSE |
 | `results/revision_r1/per_well_nrmse.csv` | seed-averaged NRMSE per (method, scenario, well index) |
-| `results/revision_r1/friedman_wellwise.csv` | Friedman test and Kendall's W per scenario, wells as blocks |
+| `results/revision_r1/friedman_wellwise.csv` | Friedman test and Kendall's W per scenario, wells as blocks, 28 methods |
+| `results/revision_r1/friedman_main11.csv` | the same restricted to the 11 methods of the original article (`scripts/recompute_from_export.py`) |
 | `results/revision_r1/wilcoxon_wellwise_holm.csv`, `wilcoxon_allpairs_holm.csv`, `wilcoxon_revision_holm.csv` | exact Wilcoxon, rank-biserial r, Holm within each family; by-well bootstrap of ΔR²_macro |
 | `results/revision_r1/seed_variance.csv` | initialisation vs evaluation-mask seed variability |
 | `results/revision_r1/neighbour_gain_spearman.csv` | graph-model gain over its no-neighbour control vs neighbour availability and distance (correlations over the 18 wells) |

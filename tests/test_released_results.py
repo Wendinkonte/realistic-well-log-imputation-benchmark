@@ -93,13 +93,19 @@ def test_r1_per_well_tables_cover_all_18_wells():
     assert not incomplete, f"per_well_nrmse.csv: incomplete wells for {incomplete[:5]}"
 
 
-@pytest.mark.parametrize("name", ["friedman_wellwise.csv", "wilcoxon_wellwise_holm.csv",
-                                  "wilcoxon_revision_holm.csv"])
+@pytest.mark.parametrize("name", ["friedman_wellwise.csv", "friedman_main11.csv",
+                                  "wilcoxon_wellwise_holm.csv", "wilcoxon_revision_holm.csv"])
 def test_r1_significance_blocks_on_18_wells(name):
     rows = _rows(R1 / name)
     assert rows, f"{name} is empty"
     assert {int(r["n_wells"]) for r in rows} == {N_WELLS_R1}
     assert {r["scenario"] for r in rows} <= R1_SCENARIOS
+
+
+def test_r1_friedman_main11_uses_the_11_article_methods():
+    rows = _rows(R1 / "friedman_main11.csv")
+    assert {r["scenario"] for r in rows} == R1_SCENARIOS
+    assert {int(r["k_methods"]) for r in rows} == {11}
 
 
 def test_r1_main_table_covers_five_scenarios_and_five_seeds():

@@ -308,7 +308,8 @@ without the corpus — they are listed in `docs/DATA_AVAILABILITY.md`.
 ## 14. Reproducing the significance tests
 
 **Revised article (R1).** The well-level tests — Friedman with Kendall's W
-(`friedman_wellwise.csv`), exact Wilcoxon with Holm correction within each scenario family
+(`friedman_wellwise.csv` over the 28 methods, `friedman_main11.csv` over the 11 methods
+of the original article), exact Wilcoxon with Holm correction within each scenario family
 (`wilcoxon_wellwise_holm.csv`, `wilcoxon_allpairs_holm.csv`, `wilcoxon_revision_holm.csv`)
 and the by-well bootstrap of ΔR²_macro — are written to `results/revision_r1/` by
 `scripts/reanalyse_revision.py`, or recomputed from the released export by
