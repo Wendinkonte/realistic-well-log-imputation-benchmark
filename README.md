@@ -1,13 +1,15 @@
-# Realistic Missingness Changes the Ranking of Well-Log Imputation Models
+# Evaluating Well-Log Imputation Under Structured Missingness: Simple Baselines, Protocol Effects and Inter-Well Information in a Paris Basin Geothermal Case Study
 
 Reference implementation and reproducibility package for a benchmark of **eleven well-log
-imputation methods** across **four missingness regimes**, under a strict, leakage-
-controlled, leave-one-well-out protocol on 18 Paris Basin geothermal wells.
+imputation methods**, plus **seventeen baselines and controls**, across **five missingness
+regimes**, under a leakage-controlled, leave-one-well-out protocol on **18 Paris Basin
+geothermal wells**.
 
-> **Release 1.1.0 (revision R1).** The depth-step QC added in R1 excludes one well, so the
-> revised benchmark uses **18 wells and 18 folds** (`docs/REVISION_R1.md`). The tables
-> already in `results/` and the sections below that describe them are those of release
-> 1.0, run on the original 19 wells.
+> **Release 1.1.0 (revision R1, tag `v1.1-r1`).** The results of the revised article are in
+> `results/revision_r1/`. The files elsewhere in `results/` are those of release 1.0
+> (original submission, 19 wells); they are kept unchanged for transparency, and
+> `results/README.md` gives the status of each one. What changed in R1 and why:
+> `docs/REVISION_R1.md`.
 
 [![CI](https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark/actions/workflows/ci.yml/badge.svg)](https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark/actions/workflows/ci.yml)
 
@@ -15,14 +17,17 @@ controlled, leave-one-well-out protocol on 18 Paris Basin geothermal wells.
 
 ## 1. Overview
 
-Machine-learning imputation of well logs is now organised around benchmarks whose method
-rankings guide practice. This repository contains the code and the derived results
-showing that those rankings **do not survive realistic conditions**.
+Machine-learning imputation of well logs is usually assessed on masks that remove one log
+at a time. This repository contains the code and the derived results of a benchmark that
+evaluates imputers under the **structured missingness observed in the field** — several
+logs absent together over the same interval — and asks how much of the apparent skill of
+learned methods survives simple baselines, careful protocol choices and well-level
+statistics.
 
-It provides the complete pipeline — LAS ingestion, windowing, the four masking
-generators, eleven imputers in three families, the leave-one-well-out harness, the pooled
-metrics, the significance tests, the cluster bootstrap and both leakage experiments —
-plus every aggregate result table the paper reports.
+It provides the complete pipeline — LAS ingestion with depth-step QC, windowing, the five
+masking generators, the imputers and controls, the leave-one-well-out harness, per-log
+metrics, well-level significance tests, the by-well bootstrap and the leakage experiments
+— plus every derived table the revised article reports.
 
 > **Scope.** This repository provides the implementation and reproducibility framework
 > used in the study. The proprietary BRGM well-log data cannot be redistributed.
@@ -31,46 +36,59 @@ plus every aggregate result table the paper reports.
 ## 2. Scientific motivation
 
 Existing benchmarks mask within a single log at a time: a few points, a short gap, or at
-most one whole log. On the study corpus, **96.5 % of real gaps instead involve several
-logs absent together over the same contiguous interval** — entire tool passes lost, a
-structured missing-not-at-random *partial blackout* that no benchmark reproduces.
+most one whole log. On the study corpus, missing samples are dominated by **several logs
+absent together over the same contiguous interval** — entire tool passes lost, a
+structured, missing-not-at-random *partial blackout*
+(`results/revision_r1/data_qc/missingness_real.json`).
 
 A second hazard compounds it. The "composite" curves often used as ground truth are
-depth-merged products that blend measured wireline data with model-derived infill, so
-evaluating an imputer against them is partly circular. This benchmark uses **measured
-curves only**.
+depth-merged products that may blend measured wireline data with model-derived infill, so
+evaluating an imputer against them can be partly circular. The revision audits the
+composite logs, and the benchmark scores **measured curves only**.
 
 ## 3. Main result
 
-**The ranking inverts with the missingness regime, and the inversion is robust across a
-five-seed replication with formal significance testing.**
+All statements below are read from `results/revision_r1/` (18 wells, five initialisation
+seeds, primary evaluation masks).
 
-* On easy mono-log gaps, sequential and carry-forward methods are near-perfect
-  (R² ≈ 0.99) — but collapse to the mean predictor when a whole log is missing
-  (R² ≈ 0.58). **BRITS, the best method on the standard benchmark, ranks last of eleven
-  there.**
-* In the whole-log (`profile`) regime the lead passes not to one method but to a **broad
-  statistical tie** (R² ≈ 0.70–0.76, Wilcoxon n.s.) spanning U-Net, MICE, the two graph
-  models and even XGBoost, with the top rank flipping between them across seeds. The deep
-  failure is specific to the imputation-specialised recurrent and attention models, not to
-  deep learning as such.
-* On the field-dominant multi-log **blackout**, none of the learned methods wins: simple
-  within-well carry-forward (LOCF) prevails.
-
-Two evaluation pitfalls are isolated, each of which alone dictates the apparent winner:
-
-* **per-fold R² averaging**, which fabricates an apparent collapse of healthy models under
-  leave-one-well-out;
-* **spatial data leakage**, where a window-level rather than well-level split alone
-  inflates accuracy from R² = 0.75 to 0.91.
+* **Simple baselines match or beat the learned methods in four of the five regimes.**
+  Linear (or PCHIP) interpolation along depth leads on `single`, `block` and `blackout`;
+  on `profile`, linear regression on the co-located logs (`ridge`) ties the best learned
+  method. Only on the empirical blackout (`blackout_emp`) does no simple baseline lead.
+* **Inter-well information does not help the graph models.** GNN and ST-GNN score at
+  least as well with the neighbours removed (`*_noneigh`, identity graph) as with them, in
+  every regime; shuffling the coordinates (`*_shuffle`) does not hurt either.
+* **No method recovers RHOB or NPHI on observed gaps.** Under `blackout_emp`, where the
+  absent-log combination and gap length are drawn from the gaps actually observed in the
+  corpus, per-log R² stays near zero for density and neutron porosity for every method;
+  only GR is partly recovered.
+* **The spatial-leakage effect comes from overlapping training windows.** In the matched
+  experiment (`ablations/leak_matched.csv`: identical windows, masks and training-set size),
+  the window split with overlapping windows scores higher than the non-overlapping split,
+  the split with blanked borders and the well split, which agree with one another.
+* **Protocol choices change the ranking.** Per-log R² rather than a pooled multi-log score,
+  the well as the statistical unit, and the empirical rather than the synthetic blackout
+  each change which method appears to win.
 
 ## 4. Methods compared
+
+The eleven methods of the article:
 
 | Family | Methods |
 |---|---|
 | **Tabular** | MEAN, Random Forest, XGBoost, MICE |
 | **Sequential** | LOCF, SAITS, BRITS, U-Net, AE |
 | **Spatial** | GNN, ST-GNN |
+
+The seventeen baselines and controls added in the revision:
+
+| Purpose | Methods |
+|---|---|
+| Simple baselines | `ridge` (linear regression), `knn`, `interp_linear`, `interp_pchip`, `locf_win` (window-limited LOCF) |
+| Spatial baselines (same depth, training wells only) | `idw`, `nnwell`, `okrige` |
+| Training on corrupted windows | `saits_mix`, `brits_mix` |
+| XGBoost variants | `xgb_miss` (missing predictors seen in training), `xgb_chain_asc`, `xgb_chain_desc` (chained equations, both orders) |
+| Graph controls | `gnn_noneigh`, `stgnn_noneigh` (identity graph), `gnn_shuffle`, `stgnn_shuffle` (kNN graph on permuted coordinates) |
 
 Tabular methods predict a missing entry from the other logs at the same depth. Sequential
 methods read the target well's window along depth. Spatial methods additionally borrow
@@ -84,65 +102,76 @@ Implementations: `src/wellog_imputation/models/`. Hyperparameters: `configs/mode
 |---|---|---|
 | `single` | 5 scattered samples in one log | mono-log, easy |
 | `block` | one contiguous block in one log | mono-log |
-| `profile` | an entire log of the window | mono-log, hardest in prior benchmarks |
-| `blackout` | **k logs over the same contiguous interval**, k drawn from the measured co-occurrence `{1: 3.5 %, 2: 75.9 %, 3: 20.6 %}` | **the realistic, field-dominant regime** |
+| `profile` | an entire log of the window | mono-log |
+| `blackout` | **k logs over the same contiguous interval**, k drawn from the co-occurrence measured on the corpus (`missingness_real.json`) | synthetic multi-log |
+| `blackout_emp` | absent-log combination and length drawn **jointly from the observed gaps**, applied to the held-out well before windowing | **empirical, field-like** |
 
-Implementation: `src/wellog_imputation/masking/scenarios.py`. Parameters:
+Implementation: `src/wellog_imputation/masking/scenarios.py` and
+`src/wellog_imputation/evaluation/empirical.py`. Parameters:
 `configs/masking/scenarios.yaml`.
 
 ## 6. Evaluation protocol
 
-* **19 wells**, each carrying the complete GR / RHOB / NPHI triplet; **802 intact windows**
-  of 256 samples (stride 64) at a 0.1524 m depth step.
-* **Leave-one-well-out cross-validation**, 19 folds — one per well. No window of the
-  held-out well ever reaches training. The fold structure is written out in
-  `configs/benchmark/folds_loo_19wells.yaml`; the released per-fold tables
-  (`results/raw_metrics.csv`, `raw_metrics_full.csv`) carry all 19 of them, keyed by fold
-  index 0-18.
+* **18 wells** carrying the complete GR / RHOB / NPHI triplet and passing the depth-step QC
+  (0.1524 m step; one well excluded, see `results/revision_r1/data_qc/`); windows of 256
+  samples, stride 64.
+* **Leave-one-well-out cross-validation**, 18 folds — one per well. No window of the
+  held-out well ever reaches training. Fold structure:
+  `configs/benchmark/folds_loo_18wells.yaml` (W01–W18, `well = W{fold+1:02d}`).
 * **Fold-local scaling**: the channel scaler is fitted on the training windows of the fold
   only.
-* **Identical evaluation masks across methods**: masks derive from a fixed per-scenario
-  seed table combined with the run's master seed, so every method is scored at exactly the
-  same positions. This is what makes the paired statistics valid.
-* **Mixed training missingness**: a quarter of the training windows under each scenario, so
-  no model is tuned to one regime.
-* **Five seeds**, with the master seed driving every source of randomness.
-* **Pooled R²** as the primary metric, in original physical units, at artificially masked
-  positions only. Per-log R² and the zero-skill MEAN floor are always reported alongside,
-  because the pooled `all` channel is inflated by between-channel variance.
-* **Significance**: Friedman over the 19 folds as blocks, Nemenyi post-hoc with
-  critical-difference diagrams, paired Wilcoxon on pre-registered contested pairs, and a
-  by-well cluster bootstrap.
+* **Identical evaluation masks across methods**, from a fixed per-scenario seed table, so
+  every method is scored at exactly the same positions.
+* **Seeds**: five initialisation seeds, and five evaluation-mask seeds decoupled from them
+  (mask seed 0 is the primary evaluation; `seed_variance.csv` separates the two sources).
+* **Primary metric: per-log R²** (GR, RHOB, NPHI) at artificially masked positions, in
+  physical units, and their equal-weight mean (`r2_macro`). A pooled multi-log score is
+  not used, because between-log variance inflates it.
+* **The well is the statistical unit**: seed-averaged per-well NRMSE; Friedman test with
+  Kendall's W; exact Wilcoxon signed-rank tests with Holm correction within each scenario
+  family; by-well cluster bootstrap of ΔR²_macro.
 * **Anti-leakage**: well-level splits, fold-local scaling, and — for the graph models —
   the held-out well's row blanked in the training grid so it is not even available as a
   neighbour.
+
+Every table of the revised article can be recomputed from the released per-well
+sufficient statistics, without the raw logs:
+
+```bash
+python scripts/recompute_from_export.py --export results/revision_r1/error_stats --out OUT
+```
 
 ## 7. Repository structure
 
 ```
 ├── configs/                    protocol and hyperparameters, transcribed from the code
 │   ├── benchmark/default.yaml
-│   ├── benchmark/folds_loo_19wells.yaml   the 19 leave-one-well-out folds, W01-W19
+│   ├── benchmark/folds_loo_18wells.yaml   the 18 leave-one-well-out folds of R1, W01-W18
+│   ├── benchmark/folds_loo_19wells.yaml   the 19 folds of release 1.0 (legacy)
 │   ├── masking/scenarios.yaml
 │   ├── models/{tabular,sequential,spatial}.yaml
 │   └── paths.example.yaml      copy to paths.yaml and point at your own data
 ├── src/wellog_imputation/
 │   ├── config.py               path resolution; no absolute path lives anywhere else
-│   ├── data/pipeline.py        LAS -> cleaned logs, windows, folds
-│   ├── masking/scenarios.py    the four mask generators
+│   ├── data/pipeline.py        LAS -> depth-step QC, cleaned logs, windows, folds
+│   ├── masking/scenarios.py    the mask generators
 │   ├── models/
-│   │   ├── tabular.py          MEAN, RF, XGBoost, MICE
-│   │   ├── sequential.py       LOCF, SAITS, BRITS, AE, U-Net
-│   │   ├── spatial.py          GNN, ST-GNN, grid, adjacency, leakage toggle
+│   │   ├── tabular.py          MEAN, RF, XGBoost, MICE, ridge, kNN, XGBoost variants
+│   │   ├── sequential.py       LOCF, interpolation, SAITS, BRITS, AE, U-Net
+│   │   ├── spatial.py          GNN, ST-GNN, spatial baselines, grid, adjacency, leakage toggle
 │   │   ├── factory.py          name -> constructor
 │   │   └── registry.py         method order, family labels, display names
 │   ├── evaluation/harness.py   LOO loop, fold-local scaler, seed tables
+│   ├── evaluation/empirical.py the empirical blackout (blackout_emp)
 │   ├── metrics/pooled.py       metrics and pooled aggregation
-│   ├── statistics/             aggregation, significance, cluster bootstrap
-│   └── utils/                  determinism, figure style, anonymisation
+│   ├── statistics/             aggregation, well-wise tests, cluster bootstrap
+│   └── utils/                  determinism, figure style, provenance
 ├── scripts/                    command-line entry points (+ SLURM templates)
 ├── examples/synthetic/         a fully synthetic corpus, runnable with no data
-├── results/                    released aggregate results and figures
+├── results/
+│   ├── revision_r1/            R1 results of the revised article (tables, error_stats,
+│   │                           data_qc, ablations, figures)
+│   └── ...                     release 1.0 results, kept for transparency
 ├── docs/                       data format, availability, reproducibility, paper mapping
 └── tests/                      masking, folds, scaling, metrics, privacy and release guards
 ```
@@ -233,7 +262,22 @@ On a cluster, use the templates in `scripts/slurm/`. `run_replication.py` skips 
 `(seed, method, fold)` already on disk, so a preempted campaign is restarted simply by
 resubmitting it.
 
+The single R1 campaign of the revised article (28 methods, five scenarios, five
+initialisation and five evaluation-mask seeds) is driven by
+`scripts/slurm/revision_r1.sh build | submit | analyse` (edit the paths and partitions
+first).
+
 ## 12. Reproducing the tables
+
+Revised article (R1), from the released per-well sufficient statistics, no data needed:
+
+```bash
+python scripts/recompute_from_export.py --export results/revision_r1/error_stats --out OUT
+```
+
+or, from your own per-fold dumps, `scripts/reanalyse_revision.py`.
+
+Release 1.0:
 
 ```bash
 python scripts/reproduce_tables.py
@@ -245,6 +289,11 @@ Consolidates the per-cell metrics, recomputes the pooled R² per seed, and write
 already-aggregated outputs are released in `results/`.
 
 ## 13. Reproducing the figures
+
+Revised article (R1): `scripts/make_revision_figures.py`; see
+`results/revision_r1/figures/README.md` for what each figure needs.
+
+Release 1.0:
 
 ```bash
 python scripts/reproduce_figures.py
@@ -258,11 +307,18 @@ without the corpus — they are listed in `docs/DATA_AVAILABILITY.md`.
 
 ## 14. Reproducing the significance tests
 
-`scripts/reproduce_tables.py` produces all of them:
+**Revised article (R1).** The well-level tests — Friedman with Kendall's W
+(`friedman_wellwise.csv`), exact Wilcoxon with Holm correction within each scenario family
+(`wilcoxon_wellwise_holm.csv`, `wilcoxon_allpairs_holm.csv`, `wilcoxon_revision_holm.csv`)
+and the by-well bootstrap of ΔR²_macro — are written to `results/revision_r1/` by
+`scripts/reanalyse_revision.py`, or recomputed from the released export by
+`scripts/recompute_from_export.py`.
+
+**Release 1.0.** `scripts/reproduce_tables.py` produces all of them:
 
 | Output | Test |
 |---|---|
-| `results/significance/friedman.csv` | Friedman, 19 folds as blocks, per (scenario, seed) |
+| `results/significance/friedman.csv` | Friedman, 19 folds as blocks, per (scenario, seed) — release 1.0 |
 | `results/significance/nemenyi_{scenario}_seed{S}.csv` | Nemenyi post-hoc, where Friedman is significant |
 | `results/significance/cd_{scenario}_seed{S}.{pdf,png}` | critical-difference diagrams |
 | `results/significance/wilcoxon_pairs.csv` | paired Wilcoxon on the contested pairs |
@@ -287,7 +343,17 @@ python scripts/run_leakage_ablation.py --models gnn,stgnn --epochs 100
 python scripts/run_window_split_leak.py --models gnn,stgnn --epochs 100
 ```
 
-Released outputs: `results/ablations/ablation_leak.csv` and `leak_randomsplit.csv`.
+Released outputs: `results/ablations/ablation_leak.csv` and `leak_randomsplit.csv`
+(release 1.0).
+
+The matched experiment of the revision (identical windows, masks and training-set size;
+overlapping vs non-overlapping windows, blanked borders, well split):
+
+```bash
+python scripts/run_leak_matched.py
+```
+
+Released output: `results/revision_r1/ablations/leak_matched.csv`.
 
 ## 16. Using the pipeline on another dataset
 
@@ -333,13 +399,13 @@ The synthetic example data shipped in `examples/synthetic/` are **entirely artif
 and are used **only to demonstrate the software interface**. They do **not** derive from,
 approximate, reconstruct, or statistically reproduce the BRGM data.
 
-The publication refers to the wells as **W01–W19**; those anonymous identifiers are the
-only well references anywhere in this repository. Most released tables are keyed by fold
-index rather than by well, so a W-identifier appears explicitly only where a table is
-genuinely per-well: `configs/benchmark/folds_loo_19wells.yaml` (all 19) and the two
-robustness sub-studies, which were run on a deliberate subset of wells. The
-W-identifier ↔ fold-index correspondence is not published, because the W-numbering
-encodes an ordering of the corpus.
+The revised article refers to its 18 wells as **W01–W18**, numbered in the order of the
+leave-one-well-out folds (`well = W{fold+1:02d}`); with BRGM approval this correspondence
+is published in `results/revision_r1/error_stats/` and
+`configs/benchmark/folds_loo_18wells.yaml`. The well excluded by the depth-step QC has no
+identifier. The release-1.0 files use a separate W01–W19 numbering (in the two robustness
+sub-studies only); no correspondence between the two numberings is published. No real
+well name, file name or coordinate appears anywhere in this repository.
 
 Note that the pooled prediction dumps are *also* withheld: they carry the ground-truth log
 value at every scored position and are therefore derived proprietary data, even though
@@ -370,12 +436,24 @@ Paper-to-code traceability, section by section: `docs/METHODS_MAPPING.md`.
 See `CITATION.cff`.
 
 ```bibtex
-@article{sawadogo_realistic_missingness,
-  title   = {Realistic Missingness Changes the Ranking of Well-Log Imputation Models},
+@article{sawadogo_structured_missingness,
+  title   = {Evaluating Well-Log Imputation Under Structured Missingness: Simple Baselines,
+             Protocol Effects and Inter-Well Information in a {Paris Basin} Geothermal
+             Case Study},
   author  = {Sawadogo, Wendinkont{\'e} and Chassagne, Romain and Joshua, Pwavodi
              and Atteia, Olivier},
-  journal = {Computers \& Geosciences},
-  note    = {Under review}
+  journal = {Applied Computing and Geosciences},
+  note    = {Under review (manuscript ACAGS-D-26-00297)}
+}
+
+@software{sawadogo_wellog_imputation_software,
+  title   = {wellog\_imputation: reproducibility package for {Evaluating Well-Log Imputation
+             Under Structured Missingness}},
+  author  = {Sawadogo, Wendinkont{\'e} and Chassagne, Romain and Joshua, Pwavodi
+             and Atteia, Olivier},
+  version = {1.1.0},
+  note    = {Tag v1.1-r1},
+  url     = {https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark}
 }
 ```
 

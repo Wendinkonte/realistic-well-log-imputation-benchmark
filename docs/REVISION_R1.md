@@ -50,3 +50,21 @@ Branch `revision-r1`. Reviewer comments are referenced as R1-n / R2-n.
 
 ## Running
 `scripts/slurm/revision_r1.sh build | submit | analyse` (edit the paths and partitions first).
+
+## Where each R1 output lives in this repository
+
+| run output (`$OUT` / `$DATA` of `scripts/slurm/revision_r1.sh`) | released as | notes |
+|---|---|---|
+| `$OUT/revision/table_main_revision.csv`, `table_perlog_revision.csv`, `per_well_nrmse.csv`, `friedman_wellwise.csv`, `wilcoxon_wellwise_holm.csv`, `wilcoxon_allpairs_holm.csv`, `wilcoxon_revision_holm.csv`, `seed_variance.csv` | `results/revision_r1/` | unchanged |
+| `$OUT/revision/neighbour_gain_spearman.csv` | `results/revision_r1/` | unchanged |
+| `$OUT/revision/neighbour_availability.csv` | not released | per-well nearest-neighbour distance |
+| run parameters | `results/revision_r1/run_metadata.json` | rebuilt without paths (commits `1a3fec5` / `cad5dbb`) |
+| per-fold dumps (`pools_seeded/`, `pools_maskvar/`) | `results/revision_r1/error_stats/` | as per-well sufficient statistics; the dumps themselves are withheld |
+| `$DATA/depth_qc.csv`, `quality_report.csv`, `missingness_real.json` | `results/revision_r1/data_qc/` | anonymised: W01–W18, `EXCLUDED`, non-triplet wells as counts |
+| `$DATA/folds_loo.json` | `configs/benchmark/folds_loo_18wells.yaml` | W-ids only |
+| `$OUT/ablations/leak_matched.csv` | `results/revision_r1/ablations/leak_matched.csv` | the `.npz` dumps are withheld |
+| article figures | `results/revision_r1/figures/` | see its README for what is released and what is not |
+
+Regenerate the R1 tables from the release: `python scripts/recompute_from_export.py
+--export results/revision_r1/error_stats --out OUT`; the figures:
+`scripts/make_revision_figures.py`.

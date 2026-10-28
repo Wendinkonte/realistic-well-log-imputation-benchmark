@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: >-
-  Realistic Missingness Changes the Ranking of Well-Log Imputation Models
+  Evaluating Well-Log Imputation Under Structured Missingness: Simple Baselines, Protocol Effects and Inter-Well Information in a Paris Basin Geothermal Case Study
 message: >-
   If you use this software or the released results, please cite both the software and
   the associated article.
@@ -26,16 +26,19 @@ repository-code: >-
   https://github.com/Wendinkonte/realistic-well-log-imputation-benchmark
 abstract: >-
   Reference implementation and reproducibility package for a benchmark of eleven
-  well-log imputation methods across four missingness regimes, evaluated under a strict
-  leakage-controlled leave-one-well-out protocol on 18 Paris Basin geothermal wells
-  (19 in release 1.0; the depth-step QC of release 1.1.0 excludes one well).
-  The package contains the data pipeline, the four masking-scenario generators
-  (single, block, profile and the realistic multi-log partial blackout), tabular,
-  sequential and spatial graph imputers, the evaluation harness with fold-local scaling
-  and identical evaluation masks across methods, pooled metric aggregation, the
-  significance testing and cluster bootstrap, and both spatial-leakage experiments.
-  The well-log data themselves are proprietary and are not redistributed; the derived
-  statistics and aggregate results are released.
+  well-log imputation methods, plus seventeen baselines and controls, across five
+  missingness regimes (single, block, profile, the synthetic multi-log blackout and an
+  empirical blackout drawn from the observed gaps), evaluated under a leakage-controlled
+  leave-one-well-out protocol on 18 Paris Basin geothermal wells (19 in release 1.0; the
+  depth-step QC of release 1.1.0 excludes one well). The package contains the data
+  pipeline with depth-step QC, the masking generators, tabular, sequential and spatial
+  graph imputers with their baselines and controls, the evaluation harness with
+  fold-local scaling and identical evaluation masks across methods, per-log metrics,
+  well-level significance tests (Friedman, exact Wilcoxon with Holm correction, by-well
+  bootstrap) and the leakage experiments. The well-log data themselves are proprietary
+  and are not redistributed; the derived statistics, including anonymised per-well
+  sufficient statistics from which every table of the revised article can be recomputed,
+  are released.
 keywords:
   - well-log imputation
   - missing data
@@ -44,13 +47,14 @@ keywords:
   - data leakage
   - reproducibility
   - benchmark
+  - baselines
   - graph neural networks
   - geothermal
   - Paris Basin
 preferred-citation:
   type: article
   title: >-
-    Realistic Missingness Changes the Ranking of Well-Log Imputation Models
+    Evaluating Well-Log Imputation Under Structured Missingness: Simple Baselines, Protocol Effects and Inter-Well Information in a Paris Basin Geothermal Case Study
   authors:
     - family-names: Sawadogo
       given-names: Wendinkonté
@@ -60,5 +64,5 @@ preferred-citation:
       given-names: Pwavodi
     - family-names: Atteia
       given-names: Olivier
-  journal: Computers & Geosciences
-  notes: Under review.
+  journal: Applied Computing and Geosciences
+  notes: Under review (manuscript ACAGS-D-26-00297).
