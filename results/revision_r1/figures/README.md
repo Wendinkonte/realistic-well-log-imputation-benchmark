@@ -2,13 +2,16 @@
 
 | figure | in the article | content | how to regenerate |
 |---|---|---|---|
+| `fig1_missingness_r1` | Figure 1 | (a) share of absent logs K = 1, 2, 3 over missing depth samples and over gap intervals; (b) absent-log combinations: interval length (median, IQR) and shares. Source: `results/revision_r1/data_qc/missingness_real.json` | produced outside the cluster (matplotlib 3.11.2), released as-is; no script in this repository regenerates it |
+| `fig2_rank_reversal_r1` | Figure 2 | R̄² (mean of per-log pooled R²) of the 11 methods of the article and two baselines (linear interpolation, ridge) across the five scenarios. Source: `results/revision_r1/table_main_revision.csv` | produced outside the cluster (matplotlib 3.11.2), released as-is; no script in this repository regenerates it |
 | `02_log_distributions_r1` | supplement | histograms of GR, RHOB and NPHI pooled over the 18 benchmark wells (sample count, median) | `scripts/make_revision_figures.py --data DIR` (needs the corpus) |
 | `03_log_crossplots_r1` | supplement | GR–RHOB, GR–NPHI and RHOB–NPHI density cross-plots pooled over the 18 wells, with Pearson r | `scripts/make_revision_figures.py --data DIR` (needs the corpus) |
 | `fig4_aggregation` | supplement | per-fold vs pooled R² for MEAN·single, GNN·blackout and ST-GNN·blackout. Source: `results/results_initial_run.json`, the initial single-seed run of the original submission (9 methods, 19 folds); the five-seed tables are in `results/aggregated.csv` | `scripts/make_revision_figures.py --results-json results/results_initial_run.json` |
 | `missingness_scenarios_synthetic` | — (illustration) | the four masking scenarios (single, block, profile, blackout) on one window of the **synthetic** example corpus. This is an illustration on synthetic data, **not the article figure**: the article's version shows a window of a real well and is not released | `scripts/make_revision_figures.py --slices examples/synthetic/data/processed/slices.npz` |
 
 Apart from the synthetic illustration, these files are the ones included in the revised
-manuscript (identical PDFs). The two
+manuscript (identical PDFs). `fig1_missingness_r1` and `fig2_rank_reversal_r1` were produced outside the
+cluster and are committed as they were delivered. The two
 pooled data figures carry no well identifier, depth or location; individual samples are
 not attributed to a well.
 
