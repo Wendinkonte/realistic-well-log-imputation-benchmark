@@ -1,0 +1,496 @@
+{
+  "n_wells_triplet": 18,
+  "cooccur_pct": {
+    "1_logs": 3.5,
+    "2_logs": 76.0,
+    "3_logs": 20.5
+  },
+  "cooccur_pct_samples": {
+    "1_logs": 3.5,
+    "2_logs": 76.0,
+    "3_logs": 20.5
+  },
+  "cooccur_pct_intervals": {
+    "1_logs": 31.5,
+    "2_logs": 33.7,
+    "3_logs": 34.8
+  },
+  "cooccur_prob_sample": {
+    "1": 0.03513318274070931,
+    "2": 0.7600302714107166,
+    "3": 0.20483654584857414
+  },
+  "combinations": {
+    "RHOB+NPHI": {
+      "share_samples_pct": 76.0,
+      "share_intervals_pct": 30.4,
+      "length_m": {
+        "p25": 220.1,
+        "p50": 513.3,
+        "p75": 1050.6,
+        "p90": 1543.2,
+        "n": 28
+      }
+    },
+    "GR+RHOB+NPHI": {
+      "share_samples_pct": 20.5,
+      "share_intervals_pct": 34.8,
+      "length_m": {
+        "p25": 0.8,
+        "p50": 5.1,
+        "p75": 23.1,
+        "p90": 585.0,
+        "n": 32
+      }
+    },
+    "RHOB": {
+      "share_samples_pct": 3.0,
+      "share_intervals_pct": 7.6,
+      "length_m": {
+        "p25": 0.9,
+        "p50": 4.3,
+        "p75": 143.6,
+        "p90": 374.1,
+        "n": 7
+      }
+    },
+    "GR": {
+      "share_samples_pct": 0.3,
+      "share_intervals_pct": 17.4,
+      "length_m": {
+        "p25": 2.1,
+        "p50": 4.6,
+        "p75": 7.1,
+        "p90": 9.5,
+        "n": 16
+      }
+    },
+    "NPHI": {
+      "share_samples_pct": 0.2,
+      "share_intervals_pct": 6.5,
+      "length_m": {
+        "p25": 3.4,
+        "p50": 6.9,
+        "p75": 13.7,
+        "p90": 16.5,
+        "n": 6
+      }
+    },
+    "GR+NPHI": {
+      "share_samples_pct": 0.0,
+      "share_intervals_pct": 3.3,
+      "length_m": {
+        "p25": 2.5,
+        "p50": 3.0,
+        "p75": 4.5,
+        "p90": 5.4,
+        "n": 3
+      }
+    }
+  },
+  "gap_length_m_all": {
+    "p25": 5.1,
+    "p50": 31.5,
+    "p75": 638.9,
+    "p90": 1795.1,
+    "n": 116
+  },
+  "gap_length_m_interior": {
+    "p25": 1.5,
+    "p50": 12.6,
+    "p75": 225.4,
+    "p90": 347.3,
+    "n": 16
+  },
+  "gaps_per_well": {
+    "W01": 11,
+    "W02": 6,
+    "W03": 6,
+    "W04": 5,
+    "W05": 6,
+    "W06": 7,
+    "W07": 4,
+    "W08": 6,
+    "W09": 7,
+    "W10": 8,
+    "W11": 7,
+    "W12": 6,
+    "W13": 6,
+    "W14": 6,
+    "W15": 6,
+    "W16": 6,
+    "W17": 7,
+    "W18": 6
+  },
+  "intervals": [
+    [
+      "GR+RHOB+NPHI",
+      250
+    ],
+    [
+      "RHOB+NPHI",
+      4643
+    ],
+    [
+      "GR+RHOB+NPHI",
+      2
+    ],
+    [
+      "RHOB+NPHI",
+      5531
+    ],
+    [
+      "RHOB+NPHI",
+      2279
+    ],
+    [
+      "GR",
+      3
+    ],
+    [
+      "GR",
+      2
+    ],
+    [
+      "GR",
+      74
+    ],
+    [
+      "GR+RHOB+NPHI",
+      1
+    ],
+    [
+      "GR+RHOB+NPHI",
+      5053
+    ],
+    [
+      "RHOB+NPHI",
+      7710
+    ],
+    [
+      "GR",
+      40
+    ],
+    [
+      "GR+RHOB+NPHI",
+      3243
+    ],
+    [
+      "GR+RHOB+NPHI",
+      6235
+    ],
+    [
+      "RHOB+NPHI",
+      6622
+    ],
+    [
+      "GR",
+      44
+    ],
+    [
+      "GR+RHOB+NPHI",
+      119
+    ],
+    [
+      "RHOB+NPHI",
+      99
+    ],
+    [
+      "RHOB",
+      1838
+    ],
+    [
+      "NPHI",
+      104
+    ],
+    [
+      "RHOB+NPHI",
+      3479
+    ],
+    [
+      "GR+RHOB+NPHI",
+      6
+    ],
+    [
+      "RHOB+NPHI",
+      10756
+    ],
+    [
+      "GR",
+      17
+    ],
+    [
+      "GR+RHOB+NPHI",
+      2
+    ],
+    [
+      "GR+RHOB+NPHI",
+      2494
+    ],
+    [
+      "RHOB+NPHI",
+      40
+    ],
+    [
+      "NPHI",
+      112
+    ],
+    [
+      "GR",
+      55
+    ],
+    [
+      "GR",
+      20
+    ],
+    [
+      "GR+RHOB+NPHI",
+      47
+    ],
+    [
+      "GR+RHOB+NPHI",
+      3905
+    ],
+    [
+      "RHOB+NPHI",
+      2220
+    ],
+    [
+      "GR+RHOB+NPHI",
+      12
+    ],
+    [
+      "RHOB+NPHI",
+      5642
+    ],
+    [
+      "GR+RHOB+NPHI",
+      65
+    ],
+    [
+      "RHOB",
+      46
+    ],
+    [
+      "GR",
+      19
+    ],
+    [
+      "GR+NPHI",
+      20
+    ],
+    [
+      "GR+RHOB+NPHI",
+      24
+    ],
+    [
+      "GR+RHOB+NPHI",
+      3
+    ],
+    [
+      "RHOB+NPHI",
+      13807
+    ],
+    [
+      "RHOB",
+      7
+    ],
+    [
+      "GR",
+      4
+    ],
+    [
+      "GR",
+      59
+    ],
+    [
+      "GR+NPHI",
+      13
+    ],
+    [
+      "GR+RHOB+NPHI",
+      22
+    ],
+    [
+      "GR+RHOB+NPHI",
+      1
+    ],
+    [
+      "RHOB+NPHI",
+      9856
+    ],
+    [
+      "RHOB",
+      5
+    ],
+    [
+      "RHOB",
+      28
+    ],
+    [
+      "RHOB+NPHI",
+      1374
+    ],
+    [
+      "NPHI",
+      47
+    ],
+    [
+      "RHOB",
+      5
+    ],
+    [
+      "RHOB+NPHI",
+      15
+    ],
+    [
+      "GR+RHOB+NPHI",
+      12
+    ],
+    [
+      "GR+RHOB+NPHI",
+      47
+    ],
+    [
+      "RHOB+NPHI",
+      9008
+    ],
+    [
+      "NPHI",
+      1
+    ],
+    [
+      "NPHI",
+      43
+    ],
+    [
+      "RHOB+NPHI",
+      1468
+    ],
+    [
+      "GR",
+      30
+    ],
+    [
+      "GR+NPHI",
+      39
+    ],
+    [
+      "GR+RHOB+NPHI",
+      12205
+    ],
+    [
+      "GR",
+      33
+    ],
+    [
+      "GR",
+      31
+    ],
+    [
+      "GR+RHOB+NPHI",
+      2
+    ],
+    [
+      "GR+RHOB+NPHI",
+      99
+    ],
+    [
+      "RHOB+NPHI",
+      2035
+    ],
+    [
+      "RHOB+NPHI",
+      6299
+    ],
+    [
+      "GR+RHOB+NPHI",
+      34
+    ],
+    [
+      "GR+RHOB+NPHI",
+      33
+    ],
+    [
+      "RHOB+NPHI",
+      9679
+    ],
+    [
+      "GR",
+      1
+    ],
+    [
+      "GR+RHOB+NPHI",
+      1
+    ],
+    [
+      "GR+RHOB+NPHI",
+      1641
+    ],
+    [
+      "RHOB",
+      3379
+    ],
+    [
+      "RHOB+NPHI",
+      5933
+    ],
+    [
+      "RHOB+NPHI",
+      2344
+    ],
+    [
+      "GR+RHOB+NPHI",
+      7
+    ],
+    [
+      "RHOB+NPHI",
+      2805
+    ],
+    [
+      "NPHI",
+      15
+    ],
+    [
+      "RHOB+NPHI",
+      3257
+    ],
+    [
+      "GR+RHOB+NPHI",
+      49
+    ],
+    [
+      "RHOB+NPHI",
+      907
+    ],
+    [
+      "RHOB+NPHI",
+      62
+    ],
+    [
+      "RHOB+NPHI",
+      45
+    ],
+    [
+      "GR+RHOB+NPHI",
+      3
+    ],
+    [
+      "GR+RHOB+NPHI",
+      85
+    ],
+    [
+      "RHOB+NPHI",
+      14579
+    ],
+    [
+      "GR",
+      66
+    ],
+    [
+      "GR+RHOB+NPHI",
+      26
+    ]
+  ],
+  "gap_median_m": 31.5
+}

@@ -1,0 +1,12 @@
+group,reason,n_wells
+screened,all LAS files screened,32
+benchmark,"GR+RHOB+NPHI present, depth QC passed",18
+excluded_depth_qc,"irregular depth step (see depth_qc.csv, row EXCLUDED)",1
+no_triplet,triplet incomplete (total),13
+no_triplet,missing or rejected: RHOB+NPHI,4
+no_triplet,missing or rejected: RHOB,3
+no_triplet,missing or rejected: NPHI,2
+no_triplet,missing or rejected: GR,2
+no_triplet,missing or rejected: GR+RHOB+NPHI,1
+no_triplet,missing or rejected: GR+RHOB,1
+no_triplet,of which GR rejected as aberrant (median < 6 gAPI),2
