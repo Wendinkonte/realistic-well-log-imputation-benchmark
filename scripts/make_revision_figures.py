@@ -12,8 +12,12 @@ What each figure needs
   ``examples/synthetic/data/processed`` works too).
 * ``fig4_aggregation``: per-fold vs pooled R^2 for three cases of the original
   (single-seed, 19-well) run of the first submission. Its input is that run's
-  ``results.json`` (per-fold and pooled metrics, keyed by fold index); pass it with
-  ``--results-json``.
+  ``results.json`` (per-fold and pooled metrics, keyed by fold index), released as
+  ``results/results_initial_run.json``; pass it with ``--results-json``.
+* ``missingness_scenarios_synthetic``: the four masking scenarios drawn on one window of
+  the SYNTHETIC example corpus (``--slices examples/synthetic/data/processed/slices.npz``).
+  It illustrates the masks only; the article's version of this figure shows a window of a
+  real well and is not released.
 * ``fig1_missingness_r1`` and ``fig2_rank_reversal_r1`` were drawn outside this pipeline;
   they are released as produced (see results/revision_r1/figures/README.md).
 
@@ -21,7 +25,8 @@ The well map, the per-well depth coverage and the example windows of the article
 locations or individual log traces and are neither released nor produced here.
 
 Usage:
-    python scripts/make_revision_figures.py --data DIR [--results-json FILE] --out DIR
+    python scripts/make_revision_figures.py [--data DIR] [--results-json FILE]
+                                            [--slices FILE] --out DIR
 """
 import argparse
 import json
@@ -34,6 +39,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 import _bootstrap_path  # noqa: F401,E402
+from wellog_imputation.evaluation.harness import EVAL_SCENARIOS, EVAL_SEED  # noqa: E402
+from wellog_imputation.masking.scenarios import make_eval_set  # noqa: E402
 from wellog_imputation.utils import figstyle as fs  # noqa: E402
 
 LOGS = ["GR", "RHOB", "NPHI"]
@@ -115,15 +122,37 @@ def fig_aggregation(results_json, out):
     _save(fig, out, "fig4_aggregation")
 
 
+def fig_missingness_scenarios(slices, out, window=0):
+    X = np.load(slices, allow_pickle=True)["X"].astype(float)
+    fig, axes = plt.subplots(1, 4, figsize=(7.4, 3.4), sharey=True)
+    depth = np.arange(X.shape[1])
+    for ax, sc in zip(axes, ["single", "block", "profile", "blackout"]):
+        rng = np.random.default_rng(EVAL_SEED[sc])
+        _, _, mask = make_eval_set(X[window:window + 1], rng=rng, **EVAL_SCENARIOS[sc])
+        for c, lg in enumerate(LOGS):
+            v = X[window, :, c]
+            v = (v - np.nanmean(v)) / (np.nanstd(v) + 1e-8)
+            ax.plot(v, depth, color=LOG_COLOR[lg], lw=1, label=lg)
+            mk = mask[0, :, c] > 0.5
+            ax.scatter(v[mk], depth[mk], s=14, color=LOG_COLOR[lg], marker="s", zorder=5)
+        ax.invert_yaxis()
+        ax.set_title(f"{sc}\n({100 * mask.mean():.1f}% masked)", fontsize=10)
+        ax.set_xlabel("z-score")
+    axes[0].legend()
+    axes[0].set_ylabel("depth (sample)")
+    _save(fig, out, "missingness_scenarios_synthetic")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", help="dataset directory (well_logs.npz, folds_loo.json)")
-    ap.add_argument("--results-json", help="results.json of the original single-seed run")
+    ap.add_argument("--results-json", help="results/results_initial_run.json (original single-seed run)")
+    ap.add_argument("--slices", help="slices.npz of the synthetic corpus, for the masking illustration")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    if not (a.data or a.results_json):
-        ap.error("nothing to do: give --data and/or --results-json")
+    if not (a.data or a.results_json or a.slices):
+        ap.error("nothing to do: give --data, --results-json and/or --slices")
     fs.apply()
     os.makedirs(a.out, exist_ok=True)
     if a.data:
@@ -132,6 +161,8 @@ def main():
         fig_log_crossplots(allv, a.out)
     if a.results_json:
         fig_aggregation(a.results_json, a.out)
+    if a.slices:
+        fig_missingness_scenarios(a.slices, a.out)
 
 
 if __name__ == "__main__":
