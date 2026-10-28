@@ -1,0 +1,73 @@
+{
+  "_note": "Rebuilt for release: the R1 analysis step did not write run_metadata.json. Values are taken from the R1 analysis parameters (REVISION_README of the run) and the released tables; no path, user name or host name is recorded.",
+  "release": "v1.1-r1",
+  "package_version": "1.1.0",
+  "git_commit_run": "1a3fec563065f099e13a938c031710f66bc052ed",
+  "git_commit_export": "cad5dbbe7706c28d66f34e5d14bfd3e2f225ce48",
+  "n_wells": 18,
+  "cross_validation": "leave-one-well-out",
+  "n_folds": 18,
+  "init_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "mask_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "primary_mask_seed": 0,
+  "scenarios": [
+    "single",
+    "block",
+    "profile",
+    "blackout",
+    "blackout_emp"
+  ],
+  "methods": [
+    "mean",
+    "locf",
+    "rf",
+    "xgb",
+    "mice",
+    "saits",
+    "brits",
+    "unet",
+    "ae",
+    "gnn",
+    "stgnn",
+    "brits_mix",
+    "gnn_noneigh",
+    "gnn_shuffle",
+    "idw",
+    "interp_linear",
+    "interp_pchip",
+    "knn",
+    "locf_win",
+    "nnwell",
+    "okrige",
+    "ridge",
+    "saits_mix",
+    "stgnn_noneigh",
+    "stgnn_shuffle",
+    "xgb_chain_asc",
+    "xgb_chain_desc",
+    "xgb_miss"
+  ],
+  "n_methods": 28,
+  "logs": [
+    "GR",
+    "RHOB",
+    "NPHI"
+  ],
+  "sigma_source": "training_fold",
+  "bootstrap_B": 10000,
+  "alpha": 0.05,
+  "multiple_testing": "Holm, one family per scenario",
+  "statistical_unit": "well (values averaged over seeds before testing)"
+}
